@@ -76,3 +76,19 @@ pub const Url = struct {
         return true;
     }
 };
+
+/// asUint converts ascii to unsigned int of appropriate size.
+pub fn asUint(comptime string: anytype) @Type(std.builtin.Type{
+    .Int = .{
+        .bits = @bitSizeOf(@TypeOf(string.*)) - 8, // (- 8) to exclude sentinel 0
+        .signedness = .unsigned,
+    },
+}) {
+    const byteLength = @bitSizeOf(@TypeOf(string.*)) / 8 - 1;
+    const expectedType = *const [byteLength:0]u8;
+    if (@TypeOf(string) != expectedType) {
+        @compileError("expected : " ++ @typeName(expectedType) ++ ", got: " ++ @typeName(@TypeOf(string)));
+    }
+
+    return @bitCast(@as(*const [byteLength]u8, string).*);
+}
