@@ -42,3 +42,17 @@ var metrics = Metrics{
     .header_too_big = m.Counter(usize).Impl.init("httpz_header_too_big", .{}),
     .body_too_big = m.Counter(usize).Impl.init("httpz_body_too_big", .{}),
 };
+
+pub fn write(writer: anytype) !void {
+    try metrics.connections.write(writer);
+    try metrics.requests.write(writer);
+    try metrics.timeout_active.write(writer);
+    try metrics.timeout_keepalive.write(writer);
+    try metrics.alloc_buffer_empty.write(writer);
+    try metrics.alloc_buffer_large.write(writer);
+    try metrics.alloc_unescape.write(writer);
+    try metrics.internal_error.write(writer);
+    try metrics.invalid_request.write(writer);
+    try metrics.header_too_big.write(writer);
+    try metrics.body_too_big.write(writer);
+}
