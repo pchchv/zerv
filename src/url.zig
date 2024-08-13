@@ -75,6 +75,87 @@ pub const Url = struct {
 
         return true;
     }
+
+    /// std.Url.unescapeString has two problems:
+    ///  First, it doesn't convert '+' -> ' '
+    ///  Second, it _always_ allocates a new string, even if nothing needs to be unescaped
+    /// When it _have_ to unescape the rendering of a key or value,
+    /// it will try to store the new value in a static buffer (if there is space),
+    /// otherwise it will fallback to allocating memory in the arena.
+    pub fn unescape(allocator: Allocator, buffer: []u8, input: []const u8) !UnescapeResult {
+        var in_i: usize = 0;
+        var has_plus = false;
+        var unescaped_len = input.len;
+        while (in_i < input.len) {
+            const b = input[in_i];
+            if (b == '%') {
+                if (in_i + 2 >= input.len or !HEX_CHAR[input[in_i + 1]] or !HEX_CHAR[input[in_i + 2]]) {
+                    return error.InvalidEscapeSequence;
+                }
+                in_i += 3;
+                unescaped_len -= 2;
+            } else if (b == '+') {
+                has_plus = true;
+                in_i += 1;
+            } else {
+                in_i += 1;
+            }
+        }
+
+        // no encoding, and no plus, nothing to unescape
+        if (unescaped_len == input.len and !has_plus) {
+            return .{ .value = input, .buffered = false };
+        }
+
+        var out = buffer;
+        var buffered = true;
+        if (buffer.len < unescaped_len) {
+            out = try allocator.alloc(u8, unescaped_len);
+            metrics.allocUnescape(unescaped_len);
+            buffered = false;
+        }
+
+        in_i = 0;
+        for (0..unescaped_len) |i| {
+            const b = input[in_i];
+            if (b == '%') {
+                const enc = input[in_i + 1 .. in_i + 3];
+                out[i] = switch (@as(u16, @bitCast(enc[0..2].*))) {
+                    asUint("20") => ' ',
+                    asUint("21") => '!',
+                    asUint("22") => '"',
+                    asUint("23") => '#',
+                    asUint("24") => '$',
+                    asUint("25") => '%',
+                    asUint("26") => '&',
+                    asUint("27") => '\'',
+                    asUint("28") => '(',
+                    asUint("29") => ')',
+                    asUint("2A") => '*',
+                    asUint("2B") => '+',
+                    asUint("2C") => ',',
+                    asUint("2F") => '/',
+                    asUint("3A") => ':',
+                    asUint("3B") => ';',
+                    asUint("3D") => '=',
+                    asUint("3F") => '?',
+                    asUint("40") => '@',
+                    asUint("5B") => '[',
+                    asUint("5D") => ']',
+                    else => HEX_DECODE[enc[0]] << 4 | HEX_DECODE[enc[1]],
+                };
+                in_i += 3;
+            } else if (b == '+') {
+                out[i] = ' ';
+                in_i += 1;
+            } else {
+                out[i] = b;
+                in_i += 1;
+            }
+        }
+
+        return .{ .value = out[0..unescaped_len], .buffered = buffered };
+    }
 };
 
 /// asUint converts ascii to unsigned int of appropriate size.
