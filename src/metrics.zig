@@ -84,3 +84,7 @@ pub fn timeoutActive(count: usize) void {
 pub fn timeoutKeepalive(count: usize) void {
     metrics.timeout_keepalive.incrBy(count);
 }
+
+pub fn internalError() void {
+    metrics.internal_error.incr();
+}
