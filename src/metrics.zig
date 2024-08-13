@@ -68,3 +68,11 @@ pub fn allocBufferLarge(size: usize) void {
 pub fn allocUnescape(size: usize) void {
     metrics.alloc_unescape.incrBy(size);
 }
+
+pub fn connection() void {
+    metrics.connections.incr();
+}
+
+pub fn request() void {
+    metrics.requests.incr();
+}
