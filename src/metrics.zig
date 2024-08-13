@@ -88,3 +88,11 @@ pub fn timeoutKeepalive(count: usize) void {
 pub fn internalError() void {
     metrics.internal_error.incr();
 }
+
+pub fn invalidRequest() void {
+    metrics.invalid_request.incr();
+}
+
+pub fn headerTooBig() void {
+    metrics.header_too_big.incr();
+}
