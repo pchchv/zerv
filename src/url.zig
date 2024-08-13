@@ -19,3 +19,12 @@ pub const Url = struct {
             .query = query,
         };
     }
+
+    // The special "*" url, which is valid in HTTP OPTIONS request.
+    pub fn star() Url {
+        return .{
+            .raw = "*",
+            .path = "*",
+            .query = "",
+        };
+    }
