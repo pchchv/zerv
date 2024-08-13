@@ -1,0 +1,44 @@
+const m = @import("metrics");
+
+const Metrics = struct {
+    // number of connections
+    connections: m.Counter(usize).Impl,
+    // number of requests (which can be more than # of connections thanks to keepalive)
+    requests: m.Counter(usize).Impl,
+    // number of connections that were timed out while service a request
+    timeout_active: m.Counter(usize).Impl,
+    // number of connections that were timed out while in keepalive
+    timeout_keepalive: m.Counter(usize).Impl,
+    // size, in bytes, of dynamically allocated memory by our buffer pool,
+    // caused by the large buffer pool being empty.
+    alloc_buffer_empty: m.Counter(usize).Impl,
+    // size, in bytes, of dynamically allocated memory by our buffer pool,
+    // caused by the required memory being larger than the large buffer size
+    alloc_buffer_large: m.Counter(usize).Impl,
+    // size, in bytes, of dynamically allocated memory used for unescaping URL or form parameters
+    alloc_unescape: m.Counter(usize).Impl,
+    // some internal processing error (should be 0!)
+    internal_error: m.Counter(usize).Impl,
+    // requests which could not be parsed
+    invalid_request: m.Counter(usize).Impl,
+    // requests which were rejected because the header was too big
+    header_too_big: m.Counter(usize).Impl,
+    // requests which were rejected because the body was too big
+    body_too_big: m.Counter(usize).Impl,
+};
+
+// This is an advanced usage of metrics.zig, largely done because we aren't
+// using any vectored metrics and thus can do everything at comptime.
+var metrics = Metrics{
+    .connections = m.Counter(usize).Impl.init("httpz_connections", .{}),
+    .requests = m.Counter(usize).Impl.init("httpz_requests", .{}),
+    .timeout_active = m.Counter(usize).Impl.init("httpz_timeout_active", .{}),
+    .timeout_keepalive = m.Counter(usize).Impl.init("httpz_timeout_keepalive", .{}),
+    .alloc_buffer_empty = m.Counter(usize).Impl.init("httpz_alloc_buffer_empty", .{}),
+    .alloc_buffer_large = m.Counter(usize).Impl.init("httpz_alloc_buffer_large", .{}),
+    .alloc_unescape = m.Counter(usize).Impl.init("httpz_alloc_unescape", .{}),
+    .internal_error = m.Counter(usize).Impl.init("httpz_internal_error", .{}),
+    .invalid_request = m.Counter(usize).Impl.init("httpz_invalid_request", .{}),
+    .header_too_big = m.Counter(usize).Impl.init("httpz_header_too_big", .{}),
+    .body_too_big = m.Counter(usize).Impl.init("httpz_body_too_big", .{}),
+};
