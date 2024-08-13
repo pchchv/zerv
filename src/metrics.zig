@@ -76,3 +76,11 @@ pub fn connection() void {
 pub fn request() void {
     metrics.requests.incr();
 }
+
+pub fn timeoutActive(count: usize) void {
+    metrics.timeout_active.incrBy(count);
+}
+
+pub fn timeoutKeepalive(count: usize) void {
+    metrics.timeout_keepalive.incrBy(count);
+}
