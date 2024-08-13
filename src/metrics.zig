@@ -96,3 +96,7 @@ pub fn invalidRequest() void {
 pub fn headerTooBig() void {
     metrics.header_too_big.incr();
 }
+
+pub fn bodyTooBig() void {
+    metrics.body_too_big.incr();
+}
