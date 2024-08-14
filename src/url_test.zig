@@ -71,3 +71,26 @@ test "url: unescape" {
     try t.expectString(expected, res.value);
     try t.expectEqual(false, res.buffered);
 }
+
+test "url: isValid" {
+    var input: [600]u8 = undefined;
+    for ([_]u8{ ' ', 'a', 'Z', '~' }) |c| {
+        @memset(&input, c);
+        for (0..input.len) |i| {
+            try t.expectEqual(true, Url.isValid(input[0..i]));
+        }
+    }
+
+    var r = t.getRandom();
+    const random = r.random();
+
+    for ([_]u8{ 31, 128, 0, 255 }) |c| {
+        for (1..input.len) |i| {
+            var slice = input[0..i];
+            const idx = random.uintAtMost(usize, slice.len - 1);
+            slice[idx] = c;
+            try t.expectEqual(false, Url.isValid(slice));
+            slice[idx] = 'a'; // revert this index to a valid value
+        }
+    }
+}
