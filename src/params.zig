@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 /// Params is similar to KeyValue with two important differences:
@@ -52,5 +53,19 @@ pub const Params = struct {
             n[i] = name;
         }
         self.len = names.len;
+    }
+
+    pub fn get(self: *const Params, needle: []const u8) ?[]const u8 {
+        const names = self.names[0..self.len];
+        for (names, 0..) |name, i| {
+            if (mem.eql(u8, name, needle)) {
+                return self.values[i];
+            }
+        }
+        return null;
+    }
+
+    pub fn reset(self: *Params) void {
+        self.len = 0;
     }
 };
