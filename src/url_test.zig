@@ -1,5 +1,5 @@
 const std = @import("std");
-const t = @import("t.zig");
+const t = @import("test.zig");
 const Url = @import("url.zig").Url;
 
 test "url: parse" {
