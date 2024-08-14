@@ -29,4 +29,28 @@ pub const Params = struct {
         allocator.free(self.names);
         allocator.free(self.values);
     }
+
+    pub fn addValue(self: *Params, value: []const u8) void {
+        const len = self.len;
+        const values = self.values;
+        if (len == values.len) {
+            return;
+        }
+        values[len] = value;
+        self.len = len + 1;
+    }
+
+    // It should be impossible for names.len != self.len at this point,
+    // but assuming this is a bit dangerous since self.names is
+    // reused between requests and doesn't need to leak anything,
+    // so forcing a len equal to names.len is safer since names is
+    // usually defined statically based on routes setup.
+    pub fn addNames(self: *Params, names: [][]const u8) void {
+        std.debug.assert(names.len == self.len);
+        const n = self.names;
+        for (names, 0..) |name, i| {
+            n[i] = name;
+        }
+        self.len = names.len;
+    }
 };
