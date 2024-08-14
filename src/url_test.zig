@@ -94,3 +94,20 @@ test "url: isValid" {
         }
     }
 }
+
+test "toUint" {
+    const ASCII_x = @as(u8, @bitCast([1]u8{'x'}));
+    const ASCII_ab = @as(u16, @bitCast([2]u8{ 'a', 'b' }));
+    const ASCII_xyz = @as(u24, @bitCast([3]u8{ 'x', 'y', 'z' }));
+    const ASCII_abcd = @as(u32, @bitCast([4]u8{ 'a', 'b', 'c', 'd' }));
+
+    try t.expectEqual(ASCII_x, Url.asUint("x"));
+    try t.expectEqual(ASCII_ab, Url.asUint("ab"));
+    try t.expectEqual(ASCII_xyz, Url.asUint("xyz"));
+    try t.expectEqual(ASCII_abcd, Url.asUint("abcd"));
+
+    try t.expectEqual(u8, @TypeOf(Url.asUint("x")));
+    try t.expectEqual(u16, @TypeOf(Url.asUint("ab")));
+    try t.expectEqual(u24, @TypeOf(Url.asUint("xyz")));
+    try t.expectEqual(u32, @TypeOf(Url.asUint("abcd")));
+}
