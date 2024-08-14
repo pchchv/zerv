@@ -1,3 +1,7 @@
+const std = @import("std");
+
+const Allocator = std.mem.Allocator;
+
 /// Params is similar to KeyValue with two important differences:
 /// 1 - There is no need to normalize (i.e. lowercase)
 ///   the names because they are statically defined in the code,
@@ -10,4 +14,19 @@ pub const Params = struct {
     len: usize,
     names: [][]const u8,
     values: [][]const u8,
+
+    pub fn init(allocator: Allocator, max: usize) !Params {
+        const names = try allocator.alloc([]const u8, max);
+        const values = try allocator.alloc([]const u8, max);
+        return .{
+            .len = 0,
+            .names = names,
+            .values = values,
+        };
+    }
+
+    pub fn deinit(self: *Params, allocator: Allocator) void {
+        allocator.free(self.names);
+        allocator.free(self.values);
+    }
 };
