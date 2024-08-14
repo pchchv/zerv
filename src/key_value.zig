@@ -69,3 +69,18 @@ fn MakeKeyValue(K: type, V: type, equalFn: fn (lhs: K, rhs: K) bool) type {
             }
             return null;
         }
+
+        pub fn reset(self: *Self) void {
+            self.len = 0;
+        }
+
+        pub fn iterator(self: *const Self) Iterator {
+            const len = self.len;
+            return .{
+                .pos = 0,
+                .keys = self.keys[0..len],
+                .values = self.values[0..len],
+            };
+        }
+    };
+}
