@@ -2,6 +2,14 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+pub const KeyValue = MakeKeyValue([]const u8, []const u8, strEql);
+pub const MultiFormKeyValue = MakeKeyValue([]const u8, MultiForm, strEql);
+
+const MultiForm = struct {
+    value: []const u8,
+    filename: ?[]const u8 = null,
+};
+
 fn MakeKeyValue(K: type, V: type, equalFn: fn (lhs: K, rhs: K) bool) type {
     return struct {
         len: usize,
