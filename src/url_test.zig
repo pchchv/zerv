@@ -1,3 +1,4 @@
+const std = @import("std");
 const t = @import("t.zig");
 const Url = @import("url.zig").Url;
 
@@ -41,4 +42,32 @@ test "url: parse" {
         try t.expectString("/hello/teg", url.path);
         try t.expectString("duncan=idaho&ghanima=atreides", url.query);
     }
+}
+
+test "url: unescape" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+
+    var buffer: [10]u8 = undefined;
+
+    try t.expectError(error.InvalidEscapeSequence, Url.unescape(t.allocator, &buffer, "%"));
+    try t.expectError(error.InvalidEscapeSequence, Url.unescape(t.allocator, &buffer, "%a"));
+    try t.expectError(error.InvalidEscapeSequence, Url.unescape(t.allocator, &buffer, "%1"));
+    try t.expectError(error.InvalidEscapeSequence, Url.unescape(t.allocator, &buffer, "123%45%6"));
+    try t.expectError(error.InvalidEscapeSequence, Url.unescape(t.allocator, &buffer, "%zzzzz"));
+
+    var res = try Url.unescape(allocator, &buffer, "a+b");
+    try t.expectString("a b", res.value);
+    try t.expectEqual(true, res.buffered);
+
+    res = try Url.unescape(allocator, &buffer, "a%20b");
+    try t.expectString("a b", res.value);
+    try t.expectEqual(true, res.buffered);
+
+    const input = "%5C%C3%B6%2F%20%C3%A4%C3%B6%C3%9F%20~~.adas-https%3A%2F%2Fcanvas%3A123%2F%23ads%26%26sad";
+    const expected = "\\ö/ äöß ~~.adas-https://canvas:123/#ads&&sad";
+    res = try Url.unescape(allocator, &buffer, input);
+    try t.expectString(expected, res.value);
+    try t.expectEqual(false, res.buffered);
 }
