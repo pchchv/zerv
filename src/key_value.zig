@@ -7,7 +7,33 @@ fn MakeKeyValue(K: type, V: type, equalFn: fn (lhs: K, rhs: K) bool) type {
         len: usize,
         keys: []K,
         values: []V,
+
         const Self = @This();
+
+        pub const Value = V;
+        pub const Iterator = struct {
+            pos: usize,
+            keys: [][]const u8,
+            values: []V,
+
+            const KV = struct {
+                key: []const u8,
+                value: V,
+            };
+
+            pub fn next(self: *Iterator) ?KV {
+                const pos = self.pos;
+                if (pos == self.keys.len) {
+                    return null;
+                }
+
+                self.pos = pos + 1;
+                return .{
+                    .key = self.keys[pos],
+                    .value = self.values[pos],
+                };
+            }
+        };
 
         pub fn init(allocator: Allocator, max: usize) !Self {
             return .{
