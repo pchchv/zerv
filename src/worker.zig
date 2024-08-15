@@ -20,4 +20,11 @@ pub const HTTPConn = struct {
         active,
         keepalive,
     };
+
+    pub const Handover = union(enum) {
+        disown,
+        close,
+        keepalive,
+        websocket: *anyopaque,
+    };
 };
