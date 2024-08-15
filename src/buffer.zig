@@ -86,4 +86,12 @@ pub const Pool = struct {
             .data = try self.allocator.alloc(u8, size),
         };
     }
+
+    pub fn alloc(self: *Pool, size: usize) !Buffer {
+        return self.allocType(self.allocator, .dynamic, size);
+    }
+
+    pub fn arenaAlloc(self: *Pool, arena: Allocator, size: usize) !Buffer {
+        return self.allocType(arena, .arena, size);
+    }
 };
