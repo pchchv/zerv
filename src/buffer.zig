@@ -122,4 +122,27 @@ pub const Pool = struct {
         self.available = index;
         return buffer;
     }
+
+    pub fn free(self: *Pool, buffer: Buffer) void {
+        switch (buffer.type) {
+            .arena => {},
+            .pooled => self.release(buffer),
+            .static => self.allocator.free(buffer.data),
+            .dynamic => self.allocator.free(buffer.data),
+        }
+    }
+
+    pub fn release(self: *Pool, buffer: Buffer) void {
+        switch (buffer.type) {
+            .static, .arena => {},
+            .dynamic => self.allocator.free(buffer.data),
+            .pooled => {
+                self.lock();
+                defer self.unlock();
+                const available = self.available;
+                self.buffers[available] = buffer;
+                self.available = available + 1;
+            },
+        }
+    }
 };
