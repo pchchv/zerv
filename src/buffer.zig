@@ -31,4 +31,40 @@ pub const Pool = struct {
     allocator: Allocator,
     buffer_size: usize,
     mutex: M,
+
+    pub fn init(allocator: Allocator, count: usize, buffer_size: usize) !Pool {
+        const buffers = try allocator.alloc(Buffer, count);
+        errdefer allocator.free(buffers);
+
+        var initialized: usize = 0;
+        errdefer {
+            for (0..initialized) |i| {
+                allocator.free(buffers[i].data);
+            }
+        }
+
+        for (0..count) |i| {
+            buffers[i] = .{
+                .type = .pooled,
+                .data = try allocator.alloc(u8, buffer_size),
+            };
+            initialized += 1;
+        }
+
+        return .{
+            .mutex = if (comptime blockingMode()) .{} else {},
+            .buffers = buffers,
+            .available = count,
+            .allocator = allocator,
+            .buffer_size = buffer_size,
+        };
+    }
+
+    pub fn deinit(self: *Pool) void {
+        const allocator = self.allocator;
+        for (self.buffers) |buf| {
+            allocator.free(buf.data);
+        }
+        allocator.free(self.buffers);
+    }
 };
