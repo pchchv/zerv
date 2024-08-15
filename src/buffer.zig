@@ -1,4 +1,5 @@
 const std = @import("std");
+const metrics = @import("metrics.zig");
 
 const blockingMode = @import("httpz.zig").blockingMode;
 
@@ -93,5 +94,32 @@ pub const Pool = struct {
 
     pub fn arenaAlloc(self: *Pool, arena: Allocator, size: usize) !Buffer {
         return self.allocType(arena, .arena, size);
+    }
+
+    fn allocType(self: *Pool, allocator: Allocator, buffer_type: Buffer.Type, size: usize) !Buffer {
+        if (size > self.buffer_size) {
+            metrics.allocBufferLarge(size);
+            return .{
+                .type = buffer_type,
+                .data = try allocator.alloc(u8, size),
+            };
+        }
+
+        self.lock();
+        const available = self.available;
+        if (available == 0) {
+            self.unlock();
+            metrics.allocBufferEmpty(size);
+            return .{
+                .type = buffer_type,
+                .data = try allocator.alloc(u8, size),
+            };
+        }
+        defer self.unlock();
+
+        const index = available - 1;
+        const buffer = self.buffers[index];
+        self.available = index;
+        return buffer;
     }
 };
