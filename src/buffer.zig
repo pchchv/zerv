@@ -145,4 +145,16 @@ pub const Pool = struct {
             },
         }
     }
+
+    inline fn lock(self: *Pool) void {
+        if (comptime blockingMode()) {
+            self.mutex.lock();
+        }
+    }
+
+    inline fn unlock(self: *Pool) void {
+        if (comptime blockingMode()) {
+            self.mutex.unlock();
+        }
+    }
 };
