@@ -18,6 +18,34 @@ pub const Method = enum {
     OPTIONS,
 };
 
+pub const ContentType = enum {
+    BINARY,
+    CSS,
+    CSV,
+    EOT,
+    EVENTS,
+    GIF,
+    GZ,
+    HTML,
+    ICO,
+    JPG,
+    JS,
+    JSON,
+    OTF,
+    PDF,
+    PNG,
+    SVG,
+    TAR,
+    TEXT,
+    TTF,
+    WASM,
+    WEBP,
+    WOFF,
+    WOFF2,
+    XML,
+    UNKNOWN,
+};
+
 pub fn blockingMode() bool {
     if (force_blocking) {
         return true;
