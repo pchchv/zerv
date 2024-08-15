@@ -7,12 +7,12 @@ pub const allocator = std.testing.allocator;
 
 pub var arena = std.heap.ArenaAllocator.init(allocator);
 
-pub fn expectEqual(expected: anytype, actual: anytype) !void {
-    try std.testing.expectEqual(@as(@TypeOf(actual), expected), actual);
-}
-
 pub fn reset() void {
     _ = arena.reset(.free_all);
+}
+
+pub fn expectEqual(expected: anytype, actual: anytype) !void {
+    try std.testing.expectEqual(@as(@TypeOf(actual), expected), actual);
 }
 
 pub fn randomString(random: std.Random, a: std.mem.Allocator, max: usize) []u8 {
