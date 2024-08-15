@@ -67,4 +67,16 @@ pub const Pool = struct {
         }
         allocator.free(self.buffers);
     }
+
+    pub fn grow(self: *Pool, arena: Allocator, buffer: *Buffer, current_size: usize, new_size: usize) !Buffer {
+        if (buffer.type == .dynamic and arena.resize(buffer.data, new_size)) {
+            buffer.data = buffer.data.ptr[0..new_size];
+            return buffer.*;
+        }
+
+        const new_buffer = try self.arenaAlloc(arena, new_size);
+        @memcpy(new_buffer.data[0..current_size], buffer.data[0..current_size]);
+        self.release(buffer.*);
+        return new_buffer;
+    }
 };
