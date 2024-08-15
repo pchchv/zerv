@@ -79,4 +79,11 @@ pub const Pool = struct {
         self.release(buffer.*);
         return new_buffer;
     }
+
+    pub fn static(self: Pool, size: usize) !Buffer {
+        return .{
+            .type = .static,
+            .data = try self.allocator.alloc(u8, size),
+        };
+    }
 };
