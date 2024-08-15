@@ -5,7 +5,6 @@ const builtin = @import("builtin");
 const url = @import("url.zig");
 
 const asUint = url.asUint;
-
 const force_blocking: bool = if (@hasDecl(build, "httpz_blocking")) build.httpz_blocking else false;
 
 pub const Protocol = enum {
@@ -108,6 +107,10 @@ pub const ContentType = enum {
             else => return .UNKNOWN,
         }
         return .UNKNOWN;
+    }
+
+    pub fn forFile(file_name: []const u8) ContentType {
+        return forExtension(std.fs.path.extension(file_name));
     }
 };
 
