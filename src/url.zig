@@ -1,4 +1,7 @@
 const std = @import("std");
+const metrics = @import("metrics.zig");
+
+const Allocator = std.mem.Allocator;
 
 const HEX_CHAR = blk: {
     var all = std.mem.zeroes([255]bool);
