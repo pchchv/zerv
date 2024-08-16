@@ -91,3 +91,18 @@ pub const Response = struct {
         thread.detach();
     }
 };
+
+fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
+    const socket = conn.stream.handle;
+    var i: usize = 0;
+    while (true) {
+        var n = try std.posix.writev(socket, vec[i..]);
+        while (n >= vec[i].len) {
+            n -= vec[i].len;
+            i += 1;
+            if (i >= vec.len) return;
+        }
+        vec[i].base += n;
+        vec[i].len -= n;
+    }
+}
