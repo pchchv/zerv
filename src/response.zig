@@ -73,4 +73,21 @@ pub const Response = struct {
     pub fn header(self: *Response, name: []const u8, value: []const u8) void {
         self.headers.add(name, value);
     }
+
+    pub fn startEventStream(self: *Response, ctx: anytype, comptime handler: fn (@TypeOf(ctx), std.net.Stream) void) !void {
+        self.content_type = .EVENTS;
+        self.headers.add("Cache-Control", "no-cache");
+        self.headers.add("Connection", "keep-alive");
+
+        const conn = self.conn;
+        const stream = conn.stream;
+
+        const header_buf = try self.prepareHeader();
+        try stream.writeAll(header_buf);
+
+        self.disown();
+
+        const thread = try std.Thread.spawn(.{}, handler, .{ ctx, stream });
+        thread.detach();
+    }
 };
