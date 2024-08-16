@@ -142,6 +142,11 @@ pub const Response = struct {
         }
     };
 
+    pub const HeaderOpts = struct {
+        dupe_name: bool = false,
+        dupe_value: bool = false,
+    };
+
     /// Should not be called directly, but initialized through a pool.
     pub fn init(arena: Allocator, conn: *HTTPConn) Response {
         return .{
