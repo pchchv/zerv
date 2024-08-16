@@ -449,4 +449,16 @@ fn writeInt(into: []u8, value: u32) usize {
 // Used repeatedly from request to request.
 pub const State = struct {
     headers: KeyValue,
+
+    pub fn init(allocator: Allocator, config: *const Config) !Response.State {
+        var headers = try KeyValue.init(allocator, config.max_header_count orelse 16);
+        errdefer headers.deinit(allocator);
+        return .{
+            .headers = headers,
+        };
+    }
+
+    pub fn deinit(self: *State, allocator: Allocator) void {
+        self.headers.deinit(allocator);
+    }
 };
