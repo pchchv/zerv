@@ -359,6 +359,33 @@ pub const Response = struct {
     pub fn directWriter(self: *Response) Writer {
         return Writer.init(self);
     }
+
+    pub fn write(self: *Response) !void {
+        if (self.written) {
+            return;
+        }
+        self.written = true;
+
+        const conn = self.conn;
+        if (self.chunked) {
+            // If the response has been chunked,
+            // the header has already been written and the connection is already in blocking mode,
+            // but the trailing chunk has not yet been written and will be write now.
+            return conn.stream.writeAll("\r\n0\r\n\r\n");
+        }
+
+        const header_buf = try self.prepareHeader();
+
+        const dyn = self.buffer;
+        const body = if (dyn.pos > 0) dyn.data[0..dyn.pos] else self.body;
+
+        var vec = [2]std.posix.iovec_const{
+            .{ .len = header_buf.len, .base = header_buf.ptr },
+            .{ .len = body.len, .base = body.ptr },
+        };
+
+        try writeAllIOVec(conn, &vec);
+    }
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
