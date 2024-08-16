@@ -241,3 +241,41 @@ fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
         vec[i].len -= n;
     }
 }
+
+fn writeInt(into: []u8, value: u32) usize {
+    const small_strings = "00010203040506070809" ++
+        "10111213141516171819" ++
+        "20212223242526272829" ++
+        "30313233343536373839" ++
+        "40414243444546474849" ++
+        "50515253545556575859" ++
+        "60616263646566676869" ++
+        "70717273747576777879" ++
+        "80818283848586878889" ++
+        "90919293949596979899";
+
+    var v = value;
+    var i: usize = 10;
+    var buf: [10]u8 = undefined;
+    while (v >= 100) {
+        const digits = v % 100 * 2;
+        v /= 100;
+        i -= 2;
+        buf[i + 1] = small_strings[digits + 1];
+        buf[i] = small_strings[digits];
+    }
+
+    {
+        const digits = v * 2;
+        i -= 1;
+        buf[i] = small_strings[digits + 1];
+        if (v >= 10) {
+            i -= 1;
+            buf[i] = small_strings[digits];
+        }
+    }
+
+    const l = buf.len - i;
+    @memcpy(into[0..l], buf[i..]);
+    return l;
+}
