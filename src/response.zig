@@ -90,6 +90,31 @@ pub const Response = struct {
         const thread = try std.Thread.spawn(.{}, handler, .{ ctx, stream });
         thread.detach();
     }
+
+    pub fn chunk(self: *Response, data: []const u8) !void {
+        const conn = self.conn;
+        const stream = conn.stream;
+        if (!self.chunked) {
+            self.chunked = true;
+            const header_buf = try self.prepareHeader();
+            try stream.writeAll(header_buf);
+        }
+
+        // enough for a 1TB chunk
+        var buf: [16]u8 = undefined;
+        buf[0] = '\r';
+        buf[1] = '\n';
+
+        const len = 2 + std.fmt.formatIntBuf(buf[2..], data.len, 16, .upper, .{});
+        buf[len] = '\r';
+        buf[len + 1] = '\n';
+
+        var vec = [2]std.posix.iovec_const{
+            .{ .len = len + 2, .base = &buf },
+            .{ .len = data.len, .base = data.ptr },
+        };
+        try writeAllIOVec(self.conn, &vec);
+    }
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
