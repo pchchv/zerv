@@ -214,6 +214,17 @@ pub const Response = struct {
         };
         try writeAllIOVec(self.conn, &vec);
     }
+
+    pub fn headerOpts(self: *Response, name: []const u8, value: []const u8, opts: HeaderOpts) !void {
+        const n = if (opts.dupe_name) try self.arena.dupe(u8, name) else name;
+        const v = if (opts.dupe_name) try self.arena.dupe(u8, value) else name;
+        self.headers.add(n, v);
+    }
+
+    pub fn json(self: *Response, value: anytype, options: std.json.StringifyOptions) !void {
+        try std.json.stringify(value, options, Writer.init(self));
+        self.content_type = zerv.ContentType.JSON;
+    }
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
