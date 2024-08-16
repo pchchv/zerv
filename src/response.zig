@@ -64,4 +64,13 @@ pub const Response = struct {
             .headers = conn.res_state.headers,
         };
     }
+
+    pub fn disown(self: *Response) void {
+        self.written = true;
+        self.conn.handover = .disown;
+    }
+
+    pub fn header(self: *Response, name: []const u8, value: []const u8) void {
+        self.headers.add(name, value);
+    }
 };
