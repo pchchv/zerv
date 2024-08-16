@@ -119,6 +119,14 @@ pub const Response = struct {
     // std.io.Writer.
     pub const Writer = struct {
         res: *Response,
+
+        fn init(res: *Response) Writer {
+            return .{ .res = res };
+        }
+
+        pub fn print(self: Writer, comptime format: []const u8, args: anytype) Allocator.Error!void {
+            return std.fmt.format(self, format, args);
+        }
     };
 };
 
