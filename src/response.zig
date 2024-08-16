@@ -215,15 +215,137 @@ pub const Response = struct {
         try writeAllIOVec(self.conn, &vec);
     }
 
+    pub fn json(self: *Response, value: anytype, options: std.json.StringifyOptions) !void {
+        try std.json.stringify(value, options, Writer.init(self));
+        self.content_type = zerv.ContentType.JSON;
+    }
+
     pub fn headerOpts(self: *Response, name: []const u8, value: []const u8, opts: HeaderOpts) !void {
         const n = if (opts.dupe_name) try self.arena.dupe(u8, name) else name;
         const v = if (opts.dupe_name) try self.arena.dupe(u8, value) else name;
         self.headers.add(n, v);
     }
 
-    pub fn json(self: *Response, value: anytype, options: std.json.StringifyOptions) !void {
-        try std.json.stringify(value, options, Writer.init(self));
-        self.content_type = zerv.ContentType.JSON;
+    fn prepareHeader(self: *Response) ![]const u8 {
+        const headers = &self.headers;
+        const names = headers.keys[0..headers.len];
+        const values = headers.values[0..headers.len];
+        var len: usize = 0;
+        for (names, values) |name, value| {
+            // +4 for the colon, space and trailer
+            len += name.len + value.len + 4;
+        }
+
+        // +200 gives us enough space to fit:
+        // status/first line
+        // longest supported built-in content type
+        // (for a custom content type,
+        // it would have been set via res.header(...) call,
+        // so would be included in `len)
+        // The Content-Length header or the Transfer-Encoding header.
+        var buf = try self.arena.alloc(u8, len + 200);
+        var pos: usize = "HTTP/1.1 XXX \r\n".len;
+        switch (self.status) {
+            inline 100...103, 200...208, 226, 300...308, 400...418, 421...426, 428, 429, 431, 451, 500...511 => |status| @memcpy(buf[0..15], std.fmt.comptimePrint("HTTP/1.1 {d} \r\n", .{status})),
+            else => |s| {
+                const HTTP1_1 = "HTTP/1.1 ";
+                const l = HTTP1_1.len;
+                @memcpy(buf[0..l], HTTP1_1);
+                pos = l + writeInt(buf[l..], @as(u32, s));
+                @memcpy(buf[pos..][0..3], " \r\n");
+                pos += 3;
+            },
+        }
+
+        if (self.content_type) |ct| {
+            const content_type: ?[]const u8 = switch (ct) {
+                .BINARY => "Content-Type: application/octet-stream\r\n",
+                .CSS => "Content-Type: text/css\r\n",
+                .CSV => "Content-Type: text/csv\r\n",
+                .EOT => "Content-Type: application/vnd.ms-fontobject\r\n",
+                .EVENTS => "Content-Type: text/event-stream\r\n",
+                .GIF => "Content-Type: image/gif\r\n",
+                .GZ => "Content-Type: application/gzip\r\n",
+                .HTML => "Content-Type: text/html\r\n",
+                .ICO => "Content-Type: image/vnd.microsoft.icon\r\n",
+                .JPG => "Content-Type: image/jpeg\r\n",
+                .JS => "Content-Type: application/javascript\r\n",
+                .JSON => "Content-Type: application/json\r\n",
+                .OTF => "Content-Type: font/otf\r\n",
+                .PDF => "Content-Type: application/pdf\r\n",
+                .PNG => "Content-Type: image/png\r\n",
+                .SVG => "Content-Type: image/svg+xml\r\n",
+                .TAR => "Content-Type: application/x-tar\r\n",
+                .TEXT => "Content-Type: text/plain\r\n",
+                .TTF => "Content-Type: font/ttf\r\n",
+                .WASM => "Content-Type: application/wasm\r\n",
+                .WEBP => "Content-Type: image/webp\r\n",
+                .WOFF => "Content-Type: font/woff\r\n",
+                .WOFF2 => "Content-Type: font/woff2\r\n",
+                .XML => "Content-Type: application/xml\r\n",
+                .UNKNOWN => null,
+            };
+            if (content_type) |value| {
+                const end = pos + value.len;
+                @memcpy(buf[pos..end], value);
+                pos = end;
+            }
+        }
+
+        if (self.keepalive == false) {
+            const CLOSE_HEADER = "Connection: Close\r\n";
+            const end = pos + CLOSE_HEADER.len;
+            @memcpy(buf[pos..end], CLOSE_HEADER);
+            pos = end;
+        }
+
+        for (names, values) |name, value| {
+            {
+                // write the name
+                const end = pos + name.len;
+                @memcpy(buf[pos..end], name);
+                pos = end;
+                buf[pos] = ':';
+                buf[pos + 1] = ' ';
+                pos += 2;
+            }
+
+            {
+                // write the value + trailer
+                const end = pos + value.len;
+                @memcpy(buf[pos..end], value);
+                pos = end;
+                buf[pos] = '\r';
+                buf[pos + 1] = '\n';
+                pos += 2;
+            }
+        }
+
+        const buffer_pos = self.buffer.pos;
+        const body_len = if (buffer_pos > 0) buffer_pos else self.body.len;
+        if (body_len > 0) {
+            const CONTENT_LENGTH = "Content-Length: ";
+            var end = pos + CONTENT_LENGTH.len;
+            @memcpy(buf[pos..end], CONTENT_LENGTH);
+            pos = end;
+
+            pos += writeInt(buf[pos..], @intCast(body_len));
+            end = pos + 4;
+            @memcpy(buf[pos..end], "\r\n\r\n");
+            return buf[0..end];
+        }
+
+        const fin = blk: {
+            // For chunked, we end with a single \r\n because the call to res.chunk()
+            // prepends a \r\n. Hence,for the first chunk, we'll have the correct \r\n\r\n
+            if (self.chunked) break :blk "Transfer-Encoding: chunked\r\n";
+            if (self.content_type == .EVENTS) break :blk "\r\n";
+            break :blk "Content-Length: 0\r\n\r\n";
+        };
+
+        const end = pos + fin.len;
+        @memcpy(buf[pos..end], fin);
+        return buf[0..end];
     }
 };
 
