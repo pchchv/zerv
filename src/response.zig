@@ -1,12 +1,16 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
 
 const HTTPConn = @import("worker.zig").HTTPConn;
 const KeyValue = @import("key_value.zig").KeyValue;
+const Config = @import("config.zig").Config.Response;
 
+const Stream = std.net.Stream;
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 
 const Self = @This();
 
@@ -440,3 +444,9 @@ fn writeInt(into: []u8, value: u32) usize {
     @memcpy(into[0..l], buf[i..]);
     return l;
 }
+
+// All the upfront memory allocation that is possible to do.
+// Used repeatedly from request to request.
+pub const State = struct {
+    headers: KeyValue,
+};
