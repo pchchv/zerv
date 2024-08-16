@@ -347,6 +347,10 @@ pub const Response = struct {
         @memcpy(buf[pos..end], fin);
         return buf[0..end];
     }
+
+    pub fn writer(self: *Response) Writer.IOWriter {
+        return .{ .context = Writer.init(self) };
+    }
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
