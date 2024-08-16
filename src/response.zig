@@ -461,4 +461,8 @@ pub const State = struct {
     pub fn deinit(self: *State, allocator: Allocator) void {
         self.headers.deinit(allocator);
     }
+
+    pub fn reset(self: *State) void {
+        self.headers.reset();
+    }
 };
