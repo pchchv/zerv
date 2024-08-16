@@ -127,6 +127,36 @@ pub const Response = struct {
         pub fn print(self: Writer, comptime format: []const u8, args: anytype) Allocator.Error!void {
             return std.fmt.format(self, format, args);
         }
+
+        pub fn writeByte(self: Writer, b: u8) !void {
+            var buf = try self.ensureSpace(1);
+            const pos = buf.pos;
+            buf.data[pos] = b;
+            buf.pos = pos + 1;
+        }
+
+        pub fn writeByteNTimes(self: Writer, b: u8, n: usize) !void {
+            var buf = try self.ensureSpace(n);
+            var data = buf.data;
+            const pos = buf.pos;
+            for (pos..pos + n) |i| {
+                data[i] = b;
+            }
+            buf.pos = pos + n;
+        }
+
+        pub fn writeBytesNTimes(self: Writer, bytes: []const u8, n: usize) !void {
+            const l = bytes.len * n;
+            var buf = try self.ensureSpace(l);
+            var pos = buf.pos;
+            var data = buf.data;
+            for (0..n) |_| {
+                const end_pos = pos + bytes.len;
+                @memcpy(data[pos..end_pos], bytes);
+                pos = end_pos;
+            }
+            buf.pos = l;
+        }
     };
 };
 
