@@ -53,6 +53,7 @@ pub const Response = struct {
         res: *Response,
 
         pub const Error = Allocator.Error;
+        pub const IOWriter = std.io.Writer(Writer, error{OutOfMemory}, Writer.write);
 
         fn init(res: *Response) Writer {
             return .{ .res = res };
@@ -103,6 +104,13 @@ pub const Response = struct {
             const end_pos = pos + data.len;
             @memcpy(buf.data[pos..end_pos], data);
             buf.pos = end_pos;
+        }
+
+        pub fn truncate(self: Writer, n: usize) void {
+            const buf = &self.res.buffer;
+            const pos = buf.pos;
+            const to_truncate = if (pos > n) n else pos;
+            buf.pos = pos - to_truncate;
         }
     };
 
