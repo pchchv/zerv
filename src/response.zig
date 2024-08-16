@@ -115,6 +115,11 @@ pub const Response = struct {
         };
         try writeAllIOVec(self.conn, &vec);
     }
+
+    // std.io.Writer.
+    pub const Writer = struct {
+        res: *Response,
+    };
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
