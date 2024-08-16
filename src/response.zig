@@ -47,4 +47,21 @@ pub const Response = struct {
         pos: usize,
         data: []u8,
     };
+
+    /// Should not be called directly, but initialized through a pool.
+    pub fn init(arena: Allocator, conn: *HTTPConn) Response {
+        return .{
+            .pos = 0,
+            .body = "",
+            .conn = conn,
+            .status = 200,
+            .arena = arena,
+            .buffer = Buffer{ .pos = 0, .data = "" },
+            .chunked = false,
+            .written = false,
+            .keepalive = true,
+            .content_type = null,
+            .headers = conn.res_state.headers,
+        };
+    }
 };
