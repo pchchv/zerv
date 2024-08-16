@@ -112,6 +112,34 @@ pub const Response = struct {
             const to_truncate = if (pos > n) n else pos;
             buf.pos = pos - to_truncate;
         }
+
+        fn ensureSpace(self: Writer, n: usize) !*Buffer {
+            const res = self.res;
+            var buf = &res.buffer;
+            const pos = buf.pos;
+            const required_capacity = pos + n;
+
+            const data = buf.data;
+            if (data.len > required_capacity) {
+                return buf;
+            }
+
+            var new_capacity = data.len;
+            while (true) {
+                new_capacity +|= new_capacity / 2 + 8;
+                if (new_capacity >= required_capacity) break;
+            }
+
+            const new = try res.arena.alloc(u8, new_capacity);
+            if (pos > 0) {
+                @memcpy(new[0..pos], data[0..pos]);
+                // Reasonable chance that the last allocation was buf to try freeing it
+                // (ArenaAllocator's free function doesn't work unless the last allocation is freed).
+                res.arena.free(data);
+            }
+            buf.data = new;
+            return buf;
+        }
     };
 
     /// Should not be called directly, but initialized through a pool.
