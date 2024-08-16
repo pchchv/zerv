@@ -48,6 +48,64 @@ pub const Response = struct {
         data: []u8,
     };
 
+    // std.io.Writer.
+    pub const Writer = struct {
+        res: *Response,
+
+        pub const Error = Allocator.Error;
+
+        fn init(res: *Response) Writer {
+            return .{ .res = res };
+        }
+
+        pub fn print(self: Writer, comptime format: []const u8, args: anytype) Allocator.Error!void {
+            return std.fmt.format(self, format, args);
+        }
+
+        pub fn write(self: Writer, data: []const u8) Allocator.Error!usize {
+            try self.writeAll(data);
+            return data.len;
+        }
+
+        pub fn writeByte(self: Writer, b: u8) !void {
+            var buf = try self.ensureSpace(1);
+            const pos = buf.pos;
+            buf.data[pos] = b;
+            buf.pos = pos + 1;
+        }
+
+        pub fn writeByteNTimes(self: Writer, b: u8, n: usize) !void {
+            var buf = try self.ensureSpace(n);
+            var data = buf.data;
+            const pos = buf.pos;
+            for (pos..pos + n) |i| {
+                data[i] = b;
+            }
+            buf.pos = pos + n;
+        }
+
+        pub fn writeBytesNTimes(self: Writer, bytes: []const u8, n: usize) !void {
+            const l = bytes.len * n;
+            var buf = try self.ensureSpace(l);
+            var pos = buf.pos;
+            var data = buf.data;
+            for (0..n) |_| {
+                const end_pos = pos + bytes.len;
+                @memcpy(data[pos..end_pos], bytes);
+                pos = end_pos;
+            }
+            buf.pos = l;
+        }
+
+        pub fn writeAll(self: Writer, data: []const u8) !void {
+            var buf = try self.ensureSpace(data.len);
+            const pos = buf.pos;
+            const end_pos = pos + data.len;
+            @memcpy(buf.data[pos..end_pos], data);
+            buf.pos = end_pos;
+        }
+    };
+
     /// Should not be called directly, but initialized through a pool.
     pub fn init(arena: Allocator, conn: *HTTPConn) Response {
         return .{
@@ -115,64 +173,6 @@ pub const Response = struct {
         };
         try writeAllIOVec(self.conn, &vec);
     }
-
-    // std.io.Writer.
-    pub const Writer = struct {
-        res: *Response,
-
-        pub const Error = Allocator.Error;
-
-        fn init(res: *Response) Writer {
-            return .{ .res = res };
-        }
-
-        pub fn print(self: Writer, comptime format: []const u8, args: anytype) Allocator.Error!void {
-            return std.fmt.format(self, format, args);
-        }
-
-        pub fn write(self: Writer, data: []const u8) Allocator.Error!usize {
-            try self.writeAll(data);
-            return data.len;
-        }
-
-        pub fn writeByte(self: Writer, b: u8) !void {
-            var buf = try self.ensureSpace(1);
-            const pos = buf.pos;
-            buf.data[pos] = b;
-            buf.pos = pos + 1;
-        }
-
-        pub fn writeByteNTimes(self: Writer, b: u8, n: usize) !void {
-            var buf = try self.ensureSpace(n);
-            var data = buf.data;
-            const pos = buf.pos;
-            for (pos..pos + n) |i| {
-                data[i] = b;
-            }
-            buf.pos = pos + n;
-        }
-
-        pub fn writeBytesNTimes(self: Writer, bytes: []const u8, n: usize) !void {
-            const l = bytes.len * n;
-            var buf = try self.ensureSpace(l);
-            var pos = buf.pos;
-            var data = buf.data;
-            for (0..n) |_| {
-                const end_pos = pos + bytes.len;
-                @memcpy(data[pos..end_pos], bytes);
-                pos = end_pos;
-            }
-            buf.pos = l;
-        }
-
-        pub fn writeAll(self: Writer, data: []const u8) !void {
-            var buf = try self.ensureSpace(data.len);
-            const pos = buf.pos;
-            const end_pos = pos + data.len;
-            @memcpy(buf.data[pos..end_pos], data);
-            buf.pos = end_pos;
-        }
-    };
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
