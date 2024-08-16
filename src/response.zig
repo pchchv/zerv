@@ -351,6 +351,14 @@ pub const Response = struct {
     pub fn writer(self: *Response) Writer.IOWriter {
         return .{ .context = Writer.init(self) };
     }
+
+    pub fn clearWriter(self: *Response) void {
+        self.buffer.pos = 0;
+    }
+
+    pub fn directWriter(self: *Response) Writer {
+        return Writer.init(self);
+    }
 };
 
 fn writeAllIOVec(conn: *HTTPConn, vec: []std.posix.iovec_const) !void {
