@@ -120,12 +120,19 @@ pub const Response = struct {
     pub const Writer = struct {
         res: *Response,
 
+        pub const Error = Allocator.Error;
+
         fn init(res: *Response) Writer {
             return .{ .res = res };
         }
 
         pub fn print(self: Writer, comptime format: []const u8, args: anytype) Allocator.Error!void {
             return std.fmt.format(self, format, args);
+        }
+
+        pub fn write(self: Writer, data: []const u8) Allocator.Error!usize {
+            try self.writeAll(data);
+            return data.len;
         }
 
         pub fn writeByte(self: Writer, b: u8) !void {
@@ -156,6 +163,14 @@ pub const Response = struct {
                 pos = end_pos;
             }
             buf.pos = l;
+        }
+
+        pub fn writeAll(self: Writer, data: []const u8) !void {
+            var buf = try self.ensureSpace(data.len);
+            const pos = buf.pos;
+            const end_pos = pos + data.len;
+            @memcpy(buf.data[pos..end_pos], data);
+            buf.pos = end_pos;
         }
     };
 };
