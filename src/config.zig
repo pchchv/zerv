@@ -9,4 +9,13 @@ pub const Config = struct {
     cors: ?CORS = null,
     thread_pool: ThreadPool = .{},
     websocket: Websocket = .{},
+
+    pub const Worker = struct {
+        count: ?u16 = null,
+        max_conn: ?u16 = null,
+        min_conn: ?u16 = null,
+        large_buffer_count: ?u16 = null,
+        large_buffer_size: ?u32 = null,
+        retain_allocated_bytes: ?usize = null,
+    };
 };
