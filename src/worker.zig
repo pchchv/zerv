@@ -1,3 +1,11 @@
+const std = @import("std");
+
+const zerv = @import("zerv.zig");
+const Request = zerv.Request;
+const Response = zerv.Response;
+
+const net = std.net;
+
 /// Wraps the socket with application-specific details,
 /// such as information needed to manage the lifecycle of the connection (such as timeouts).
 /// Connects are placed in a linked list, hence next/prev.
@@ -10,6 +18,32 @@
 /// A pointer to conn is userdata passed to epoll/kqueue.
 /// Should only be created via the HTTPConnPool worker.
 pub const HTTPConn = struct {
+    state: State,
+    handover: Handover,
+    timeout: u32, // unix timestamp (seconds) where this connection should timeout
+    request_count: u64, // number of requests made on this connection (within a keepalive session)
+    close: bool, // whether or not to close the connection after the response is sent
+    stream: net.Stream,
+    address: net.Address,
+    // Data needed to parse a request. This contains pre-allocated memory, e.g.
+    // as a read buffer and to store parsed headers. It also contains the state
+    // necessary to parse the request over successive nonblocking read calls.
+    req_state: Request.State,
+    // Data needed to create the response. This contains pre-allocate memory, .e.
+    // header buffer to write the buffer. It also contains the state necessary
+    // to write the response over successive nonblocking write calls.
+    res_state: Response.State,
+    // Memory that is needed for the lifetime of a request, specifically from the
+    // point where the request is parsed to after the response is sent, can be
+    // allocated in this arena. An allocator for this arena is available to the
+    // application as req.arena and res.arena.
+    arena: *std.heap.ArenaAllocator,
+    // This is our ws.Worker(WSH) but the type is erased so that Conn isn't
+    // a generic. We don't want Conn to be a generic, because we don't want Response
+    // to be generics since that would make using the library unecessarily complex
+    // (especially since not everyone cares about websockets).
+    ws_worker: *anyopaque,
+
     /// A connection can be in one of two states: active or keepalive.
     /// It begins and stays in the “active” state until a response is sent.
     /// Then, if the connection is not closed,
