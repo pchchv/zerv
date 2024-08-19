@@ -1,3 +1,4 @@
+const zerv = @import("zerv.zig");
 const request = @import("request.zig");
 const response = @import("response.zig");
 
@@ -62,4 +63,23 @@ pub const Config = struct {
         large_buffer_size: ?usize = null,
         large_buffer_pool: ?u16 = null,
     };
+
+    pub fn threadPoolCount(self: *const Config) u32 {
+        const thread_count = self.thread_pool.count orelse 4;
+
+        // In blockingMode there is only 1 worker (regardless of configuration).
+        // It is necessary that blocking and non-blocking modes use the same number of threads,
+        // so convert the extra workers into thread pool threads.
+        // In blockingMode, the worker does relatively little work,
+        // while thread pool threads do more,
+        // so this rebalancing makes some sense,
+        // and can always be abandoned by explicitly setting config.workers.count = 1
+        if (zerv.blockingMode()) {
+            const worker_count = self.workerCount();
+            if (worker_count > 1) {
+                return thread_count + worker_count - 1;
+            }
+        }
+        return thread_count;
+    }
 };
