@@ -112,3 +112,61 @@ test "response: header" {
         try ctx.expect("HTTP/1.1 200 \r\nKey2: Value2\r\nContent-Length: 0\r\n\r\n");
     }
 }
+
+test "response: direct writer" {
+    defer t.reset();
+    var ctx = t.Context.init(.{});
+    defer ctx.deinit();
+
+    var res = ctx.response();
+
+    var writer = res.directWriter();
+    writer.truncate(1);
+    try writer.writeByte('[');
+    writer.truncate(4);
+    try writer.writeByte('[');
+    try writer.writeAll("12345");
+    writer.truncate(2);
+    try writer.writeByte(',');
+    try writer.writeAll("456");
+    try writer.writeByte(',');
+    writer.truncate(1);
+    try writer.writeByte(']');
+
+    try res.write();
+    try ctx.expect("HTTP/1.1 200 \r\nContent-Length: 9\r\n\r\n[123,456]");
+}
+
+// this used to crash
+test "response: multiple writers" {
+    defer t.reset();
+    var ctx = t.Context.init(.{});
+    defer ctx.deinit();
+    var res = ctx.response();
+    {
+        var w = res.writer();
+        try w.writeAll("a" ** 5000);
+    }
+    {
+        var w = res.writer();
+        try w.writeAll("z" ** 10);
+    }
+    try res.write();
+    try ctx.expect("HTTP/1.1 200 \r\nContent-Length: 5010\r\n\r\n" ++ ("a" ** 5000) ++ ("z" ** 10));
+}
+
+test "response: clearWriter" {
+    defer t.reset();
+    var ctx = t.Context.init(.{});
+    defer ctx.deinit();
+
+    var res = ctx.response();
+    var writer = res.writer();
+
+    try writer.writeAll("abc");
+    res.clearWriter();
+    try writer.writeAll("123");
+
+    try res.write();
+    try ctx.expect("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n123");
+}
