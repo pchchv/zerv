@@ -4,6 +4,15 @@ const builtin = @import("builtin");
 
 const url = @import("url.zig");
 
+pub const request = @import("request.zig");
+pub const response = @import("response.zig");
+pub const key_value = @import("key_value.zig");
+
+pub const Url = url.Url;
+pub const Request = request.Request;
+pub const Response = response.Response;
+
+
 const asUint = url.asUint;
 const force_blocking: bool = if (@hasDecl(build, "httpz_blocking")) build.httpz_blocking else false;
 
