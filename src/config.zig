@@ -35,4 +35,10 @@ pub const Config = struct {
     pub const Response = struct {
         max_header_count: ?usize = null,
     };
+
+    pub const Timeout = struct {
+        request: ?u32 = null,
+        keepalive: ?u32 = null,
+        request_count: ?u32 = null,
+    };
 };
