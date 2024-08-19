@@ -1,8 +1,14 @@
 const std = @import("std");
 
 const zerv = @import("zerv.zig");
+
+const Config = zerv.Config;
 const Request = zerv.Request;
 const Response = zerv.Response;
+
+const BufferPool = @import("buffer.zig").Pool;
+
+const Allocator = std.mem.Allocator;
 
 const net = std.net;
 
@@ -61,4 +67,38 @@ pub const HTTPConn = struct {
         keepalive,
         websocket: *anyopaque,
     };
+
+    fn init(allocator: Allocator, buffer_pool: *BufferPool, ws_worker: *anyopaque, config: *const Config) !HTTPConn {
+        const arena = try allocator.create(std.heap.ArenaAllocator);
+        errdefer allocator.destroy(arena);
+
+        arena.* = std.heap.ArenaAllocator.init(allocator);
+
+        var req_state = try Request.State.init(allocator, arena, buffer_pool, &config.request);
+        errdefer req_state.deinit(allocator);
+
+        var res_state = try Response.State.init(allocator, &config.response);
+        errdefer res_state.deinit(allocator);
+
+        return .{
+            .arena = arena,
+            .close = false,
+            .state = .active,
+            .handover = .close,
+            .stream = undefined,
+            .address = undefined,
+            .req_state = req_state,
+            .res_state = res_state,
+            .timeout = 0,
+            .request_count = 0,
+            .ws_worker = ws_worker,
+        };
+    }
+
+    pub fn deinit(self: *HTTPConn, allocator: Allocator) void {
+        self.arena.deinit();
+        allocator.destroy(self.arena);
+        self.req_state.deinit(allocator);
+        self.res_state.deinit(allocator);
+    }
 };
