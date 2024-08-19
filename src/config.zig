@@ -2,6 +2,8 @@ const zerv = @import("zerv.zig");
 const request = @import("request.zig");
 const response = @import("response.zig");
 
+const DEFAULT_WORKERS = 2;
+
 pub const Config = struct {
     port: ?u16 = null,
     address: ?[]const u8 = null,
@@ -81,5 +83,12 @@ pub const Config = struct {
             }
         }
         return thread_count;
+    }
+
+    pub fn workerCount(self: *const Config) u32 {
+        if (zerv.blockingMode()) {
+            return 1;
+        }
+        return self.workers.count orelse DEFAULT_WORKERS;
     }
 };
