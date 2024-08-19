@@ -170,3 +170,20 @@ test "response: clearWriter" {
     try res.write();
     try ctx.expect("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n123");
 }
+
+test "response: written" {
+    defer t.reset();
+    var ctx = t.Context.init(.{});
+    defer ctx.deinit();
+
+    var res = ctx.response();
+
+    res.body = "abc";
+    try res.write();
+    try ctx.expect("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\nabc");
+
+    // write again, without a res.reset, nothing gets written
+    res.body = "yo!";
+    try res.write();
+    try ctx.expect("");
+}
