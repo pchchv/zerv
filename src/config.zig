@@ -48,4 +48,18 @@ pub const Config = struct {
         methods: ?[]const u8 = null,
         max_age: ?[]const u8 = null,
     };
+
+    pub const ThreadPool = struct {
+        count: ?u16 = null,
+        backlog: ?u32 = null,
+        buffer_size: ?usize = null,
+    };
+
+    pub const Websocket = struct {
+        max_message_size: ?usize = null,
+        small_buffer_size: ?usize = null,
+        small_buffer_pool: ?usize = null,
+        large_buffer_size: ?usize = null,
+        large_buffer_pool: ?u16 = null,
+    };
 };
