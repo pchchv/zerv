@@ -1,3 +1,6 @@
+const request = @import("request.zig");
+const response = @import("response.zig");
+
 pub const Config = struct {
     port: ?u16 = null,
     address: ?[]const u8 = null,
@@ -17,5 +20,19 @@ pub const Config = struct {
         large_buffer_count: ?u16 = null,
         large_buffer_size: ?u32 = null,
         retain_allocated_bytes: ?usize = null,
+    };
+
+    pub const Request = struct {
+        max_body_size: ?usize = null,
+        buffer_size: ?usize = null,
+        max_header_count: ?usize = null,
+        max_param_count: ?usize = null,
+        max_query_count: ?usize = null,
+        max_form_count: ?usize = null,
+        max_multiform_count: ?usize = null,
+    };
+
+    pub const Response = struct {
+        max_header_count: ?usize = null,
     };
 };
