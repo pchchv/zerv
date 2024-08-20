@@ -116,6 +116,27 @@ const HTTPConnPool = struct {
         self.unlock();
         return conn;
     }
+
+    fn release(self: *HTTPConnPool, conn: *HTTPConn) void {
+        const conns = self.conns;
+
+        self.lock();
+        const available = self.available;
+        if (available == conns.len) {
+            self.unlock();
+            conn.deinit(self.allocator);
+
+            self.http_mem_pool_mut.lock();
+            self.http_mem_pool.destroy(conn);
+            self.http_mem_pool_mut.unlock();
+            return;
+        }
+
+        conn.reset(self.retain_allocated_bytes);
+        conns[available] = conn;
+        self.available = available + 1;
+        self.unlock();
+    }
 };
 
 /// Wraps the socket with application-specific details,
