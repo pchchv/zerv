@@ -296,4 +296,22 @@ const EPoll = struct {
         var event = linux.epoll_event{ .events = linux.EPOLL.IN | linux.EPOLL.ONESHOT, .data = .{ .ptr = data } };
         return posix.epoll_ctl(self.q, op, fd, &event);
     }
+
+    fn wait(self: *EPoll, timeout_sec: ?i32) !Iterator {
+        const event_list = &self.event_list;
+        var timeout: i32 = -1;
+        if (timeout_sec) |sec| {
+            if (sec > 2147483) {
+                timeout = 2147483647; // max supported timeout by epoll_wait
+            } else {
+                timeout = sec * 1000;
+            }
+        }
+
+        const event_count = posix.epoll_wait(self.q, event_list, timeout);
+        return .{
+            .index = 0,
+            .events = event_list[0..event_count],
+        };
+    }
 };
