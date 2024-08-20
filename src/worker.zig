@@ -65,6 +65,30 @@ const HTTPConnPool = struct {
             .retain_allocated_bytes = config.workers.retain_allocated_bytes orelse 4096,
         };
     }
+
+    fn deinit(self: *HTTPConnPool) void {
+        const allocator = self.allocator;
+        // rest of the conns are "checked out" and owned by the Manager whichi will free them.
+        for (self.conns[0..self.available]) |conn| {
+            conn.deinit(allocator);
+        }
+        allocator.free(self.conns);
+        self.http_mem_pool.deinit();
+    }
+
+    // Don't need thread safety in nonblocking.
+    fn lock(self: *HTTPConnPool) void {
+        if (comptime zerv.blockingMode()) {
+            self.mut.lock();
+        }
+    }
+
+    // Don't need thread safety in nonblocking.
+    fn unlock(self: *HTTPConnPool) void {
+        if (comptime zerv.blockingMode()) {
+            self.mut.unlock();
+        }
+    }
 };
 
 /// Wraps the socket with application-specific details,
