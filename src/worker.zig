@@ -101,4 +101,22 @@ pub const HTTPConn = struct {
         self.req_state.deinit(allocator);
         self.res_state.deinit(allocator);
     }
+
+    pub fn keepalive(self: *HTTPConn, retain_allocated_bytes: usize) void {
+        self.req_state.reset();
+        self.res_state.reset();
+        _ = self.arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
+    }
+
+    // reset getting put back into the pool.
+    pub fn reset(self: *HTTPConn, retain_allocated_bytes: usize) void {
+        self.close = false;
+        self.handover = .close;
+        self.stream = undefined;
+        self.address = undefined;
+        self.request_count = 0;
+        self.req_state.reset();
+        self.res_state.reset();
+        _ = self.arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
+    }
 };
