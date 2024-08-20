@@ -9,6 +9,7 @@ const Response = zerv.Response;
 const BufferPool = @import("buffer.zig").Pool;
 
 const net = std.net;
+const posix = std.posix;
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
@@ -253,4 +254,15 @@ const EPoll = struct {
 
     const linux = std.os.linux;
     const EpollEvent = linux.epoll_event;
+
+    fn init() !EPoll {
+        return .{
+            .event_list = undefined,
+            .q = try posix.epoll_create1(0),
+        };
+    }
+
+    fn deinit(self: EPoll) void {
+        posix.close(self.q);
+    }
 };
