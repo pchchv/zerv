@@ -24,7 +24,6 @@ const HTTPConnPool = struct {
     retain_allocated_bytes: usize,
     http_mem_pool_mut: Thread.Mutex,
     http_mem_pool: std.heap.MemoryPool(HTTPConn),
-
     // The type is erased because it is necessary for Conn,
     // and thus Request and Response, to carry the type with them.
     // This is all about making the API cleaner.
