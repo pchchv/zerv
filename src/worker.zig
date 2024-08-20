@@ -246,3 +246,11 @@ pub const HTTPConn = struct {
         _ = self.arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
     }
 };
+
+const EPoll = struct {
+    q: i32,
+    event_list: [128]EpollEvent,
+
+    const linux = std.os.linux;
+    const EpollEvent = linux.epoll_event;
+};
