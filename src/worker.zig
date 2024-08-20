@@ -8,9 +8,27 @@ const Response = zerv.Response;
 
 const BufferPool = @import("buffer.zig").Pool;
 
+const net = std.net;
+const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
-const net = std.net;
+// There's some shared logic between the NonBlocking and Blocking workers.
+// Whatever we can de-duplicate, goes here.
+const HTTPConnPool = struct {
+    mut: Thread.Mutex,
+    conns: []*HTTPConn,
+    available: usize,
+    allocator: Allocator,
+    config: *const Config,
+    buffer_pool: *BufferPool,
+    retain_allocated_bytes: usize,
+    http_mem_pool_mut: Thread.Mutex,
+    http_mem_pool: std.heap.MemoryPool(HTTPConn),
+    // The type is erased because it is necessary for Conn,
+    // and thus Request and Response, to carry the type with them.
+    // This is all about making the API cleaner.
+    websocket: *anyopaque,
+};
 
 /// Wraps the socket with application-specific details,
 /// such as information needed to manage the lifecycle of the connection (such as timeouts).
