@@ -10,6 +10,7 @@ const BufferPool = @import("buffer.zig").Pool;
 
 const net = std.net;
 const posix = std.posix;
+
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
@@ -264,5 +265,21 @@ const EPoll = struct {
 
     fn deinit(self: EPoll) void {
         posix.close(self.q);
+    }
+
+    fn monitorAccept(self: *EPoll, fd: posix.fd_t) !void {
+        var event = linux.epoll_event{ .events = linux.EPOLL.IN, .data = .{ .ptr = 0 } };
+        return std.posix.epoll_ctl(self.q, linux.EPOLL.CTL_ADD, fd, &event);
+    }
+
+    fn monitorSignal(self: *EPoll, fd: posix.fd_t) !void {
+        var event = linux.epoll_event{ .events = linux.EPOLL.IN, .data = .{ .ptr = 1 } };
+        return std.posix.epoll_ctl(self.q, linux.EPOLL.CTL_ADD, fd, &event);
+    }
+
+    fn monitorRead(self: *EPoll, fd: posix.fd_t, data: usize, comptime rearm: bool) !void {
+        const op = if (rearm) linux.EPOLL.CTL_MOD else linux.EPOLL.CTL_ADD;
+        var event = linux.epoll_event{ .events = linux.EPOLL.IN | linux.EPOLL.ONESHOT, .data = .{ .ptr = data } };
+        return posix.epoll_ctl(self.q, op, fd, &event);
     }
 };
