@@ -255,6 +255,20 @@ const EPoll = struct {
 
     const linux = std.os.linux;
     const EpollEvent = linux.epoll_event;
+    const Iterator = struct {
+        index: usize,
+        events: []EpollEvent,
+
+        fn next(self: *Iterator) ?usize {
+            const index = self.index;
+            const events = self.events;
+            if (index == events.len) {
+                return null;
+            }
+            self.index = index + 1;
+            return self.events[index].data.ptr;
+        }
+    };
 
     fn init() !EPoll {
         return .{
