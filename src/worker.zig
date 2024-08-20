@@ -24,10 +24,47 @@ const HTTPConnPool = struct {
     retain_allocated_bytes: usize,
     http_mem_pool_mut: Thread.Mutex,
     http_mem_pool: std.heap.MemoryPool(HTTPConn),
+
     // The type is erased because it is necessary for Conn,
     // and thus Request and Response, to carry the type with them.
     // This is all about making the API cleaner.
     websocket: *anyopaque,
+
+    fn init(allocator: Allocator, buffer_pool: *BufferPool, websocket: *anyopaque, config: *const Config) !HTTPConnPool {
+        const min = config.workers.min_conn orelse config.workers.max_conn orelse 64;
+        var conns = try allocator.alloc(*HTTPConn, min);
+        errdefer allocator.free(conns);
+
+        var http_mem_pool = std.heap.MemoryPool(HTTPConn).init(allocator);
+        errdefer http_mem_pool.deinit();
+
+        var initialized: usize = 0;
+        errdefer {
+            for (0..initialized) |i| {
+                conns[i].deinit(allocator);
+            }
+        }
+
+        for (0..min) |i| {
+            const conn = try http_mem_pool.create();
+            conn.* = try HTTPConn.init(allocator, buffer_pool, websocket, config);
+            conns[i] = conn;
+            initialized += 1;
+        }
+
+        return .{
+            .mut = .{},
+            .conns = conns,
+            .config = config,
+            .available = min,
+            .websocket = websocket,
+            .allocator = allocator,
+            .buffer_pool = buffer_pool,
+            .http_mem_pool = http_mem_pool,
+            .http_mem_pool_mut = .{},
+            .retain_allocated_bytes = config.workers.retain_allocated_bytes orelse 4096,
+        };
+    }
 };
 
 /// Wraps the socket with application-specific details,
