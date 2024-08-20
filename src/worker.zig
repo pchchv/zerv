@@ -314,4 +314,8 @@ const EPoll = struct {
             .events = event_list[0..event_count],
         };
     }
+
+    fn remove(self: *EPoll, fd: posix.fd_t) !void {
+        return posix.epoll_ctl(self.q, linux.EPOLL.CTL_DEL, fd, null);
+    }
 };
