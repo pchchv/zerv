@@ -89,6 +89,33 @@ const HTTPConnPool = struct {
             self.mut.unlock();
         }
     }
+
+    fn acquire(self: *HTTPConnPool) !*HTTPConn {
+        const conns = self.conns;
+        self.lock();
+        const available = self.available;
+        if (available == 0) {
+            self.unlock();
+
+            self.http_mem_pool_mut.lock();
+            const conn = try self.http_mem_pool.create();
+            self.http_mem_pool_mut.unlock();
+            errdefer {
+                self.http_mem_pool_mut.lock();
+                self.http_mem_pool.destroy(conn);
+                self.http_mem_pool_mut.unlock();
+            }
+
+            conn.* = try HTTPConn.init(self.allocator, self.buffer_pool, self.websocket, self.config);
+            return conn;
+        }
+
+        const index = available - 1;
+        const conn = conns[index];
+        self.available = index;
+        self.unlock();
+        return conn;
+    }
 };
 
 /// Wraps the socket with application-specific details,
