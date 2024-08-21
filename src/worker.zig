@@ -339,4 +339,31 @@ const KQueue = struct {
     fn deinit(self: KQueue) void {
         posix.close(self.q);
     }
+
+    fn monitorAccept(self: *KQueue, fd: posix.fd_t) !void {
+        try self.change(fd, 0, posix.system.EVFILT.READ, posix.system.EV.ADD);
+    }
+
+    fn monitorSignal(self: *KQueue, fd: posix.fd_t) !void {
+        try self.change(fd, 1, posix.system.EVFILT.READ, posix.system.EV.ADD);
+    }
+
+    fn monitorRead(self: *KQueue, fd: posix.socket_t, data: usize, comptime rearm: bool) !void {
+        if (rearm) {
+            // for websocket connections,
+            // this is called in a thread-pool thread so cannot be queued up -
+            // it needs to be immediately picked up since our worker could be in a wait() call.
+            const event = Kevent{
+                .ident = @intCast(fd),
+                .filter = posix.system.EVFILT.READ,
+                .flags = posix.system.EV.ADD | posix.system.EV.ENABLE | posix.system.EV.DISPATCH,
+                .fflags = 0,
+                .data = 0,
+                .udata = data,
+            };
+            _ = try posix.kevent(self.q, &.{event}, &[_]Kevent{}, null);
+        } else {
+            try self.change(fd, data, posix.system.EVFILT.READ, posix.system.EV.ADD | posix.system.EV.ENABLE | posix.system.EV.DISPATCH);
+        }
+    }
 };
