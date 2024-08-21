@@ -426,3 +426,20 @@ pub fn timestamp() u32 {
     posix.clock_gettime(posix.CLOCK.REALTIME, &ts) catch unreachable;
     return @intCast(ts.sec);
 }
+
+fn initializeBufferPool(allocator: Allocator, config: *const Config) !*BufferPool {
+    const large_buffer_count = config.workers.large_buffer_count orelse blk: {
+        if (zerv.blockingMode()) {
+            break :blk config.threadPoolCount();
+        } else {
+            break :blk 16;
+        }
+    };
+
+    const large_buffer_size = config.workers.large_buffer_size orelse config.request.max_body_size orelse 65536;
+    const buffer_pool = try allocator.create(BufferPool);
+    errdefer allocator.destroy(buffer_pool);
+
+    buffer_pool.* = try BufferPool.init(allocator, large_buffer_count, large_buffer_size);
+    return buffer_pool;
+}
