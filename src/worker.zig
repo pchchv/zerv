@@ -319,3 +319,11 @@ const EPoll = struct {
         return posix.epoll_ctl(self.q, linux.EPOLL.CTL_DEL, fd, null);
     }
 };
+
+const KQueue = struct {
+    q: i32,
+    change_count: usize,
+    change_buffer: [32]Kevent,
+    event_list: [128]Kevent,
+    const Kevent = posix.Kevent;
+};
