@@ -366,4 +366,27 @@ const KQueue = struct {
             try self.change(fd, data, posix.system.EVFILT.READ, posix.system.EV.ADD | posix.system.EV.ENABLE | posix.system.EV.DISPATCH);
         }
     }
+
+    fn remove(self: *KQueue, fd: posix.fd_t) !void {
+        try self.change(fd, 0, posix.system.EVFILT.READ, posix.system.EV.DELETE);
+    }
+
+    fn change(self: *KQueue, fd: posix.fd_t, data: usize, filter: i16, flags: u16) !void {
+        var change_count = self.change_count;
+        var change_buffer = &self.change_buffer;
+        if (change_count == change_buffer.len) {
+            // calling this with an empty event_list will return immediate
+            _ = try posix.kevent(self.q, change_buffer, &[_]Kevent{}, null);
+            change_count = 0;
+        }
+        change_buffer[change_count] = .{
+            .ident = @intCast(fd),
+            .filter = filter,
+            .flags = flags,
+            .fflags = 0,
+            .data = 0,
+            .udata = data,
+        };
+        self.change_count = change_count + 1;
+    }
 };
