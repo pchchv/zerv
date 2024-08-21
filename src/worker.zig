@@ -327,6 +327,21 @@ const KQueue = struct {
     event_list: [128]Kevent,
     const Kevent = posix.Kevent;
 
+    const Iterator = struct {
+        index: usize,
+        events: []Kevent,
+
+        fn next(self: *Iterator) ?usize {
+            const index = self.index;
+            const events = self.events;
+            if (index == events.len) {
+                return null;
+            }
+            self.index = index + 1;
+            return self.events[index].udata;
+        }
+    };
+
     fn init() !KQueue {
         return .{
             .q = try posix.kqueue(),
