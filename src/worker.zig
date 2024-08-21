@@ -326,4 +326,17 @@ const KQueue = struct {
     change_buffer: [32]Kevent,
     event_list: [128]Kevent,
     const Kevent = posix.Kevent;
+
+    fn init() !KQueue {
+        return .{
+            .q = try posix.kqueue(),
+            .change_count = 0,
+            .change_buffer = undefined,
+            .event_list = undefined,
+        };
+    }
+
+    fn deinit(self: KQueue) void {
+        posix.close(self.q);
+    }
 };
