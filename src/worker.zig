@@ -417,3 +417,12 @@ const KQueue = struct {
         };
     }
 };
+
+pub fn timestamp() u32 {
+    if (comptime @hasDecl(posix, "CLOCK") == false or posix.CLOCK == void) {
+        return @intCast(std.time.timestamp());
+    }
+    var ts: posix.timespec = undefined;
+    posix.clock_gettime(posix.CLOCK.REALTIME, &ts) catch unreachable;
+    return @intCast(ts.sec);
+}
