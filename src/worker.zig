@@ -404,4 +404,16 @@ const KQueue = struct {
         };
         self.change_count = change_count + 1;
     }
+
+    fn wait(self: *KQueue, timeout_sec: ?i32) !Iterator {
+        const event_list = &self.event_list;
+        const timeout: ?posix.timespec = if (timeout_sec) |ts| posix.timespec{ .sec = ts, .nsec = 0 } else null;
+        const event_count = try posix.kevent(self.q, self.change_buffer[0..self.change_count], event_list, if (timeout) |ts| &ts else null);
+        self.change_count = 0;
+
+        return .{
+            .index = 0,
+            .events = event_list[0..event_count],
+        };
+    }
 };
