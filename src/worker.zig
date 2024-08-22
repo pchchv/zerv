@@ -12,6 +12,7 @@ const BufferPool = @import("buffer.zig").Pool;
 
 const net = std.net;
 const posix = std.posix;
+const log = std.log.scoped(.zerv);
 
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
@@ -762,4 +763,10 @@ fn writeError(conn: *HTTPConn, comptime status: u16, comptime msg: []const u8) !
 
         i += n;
     }
+}
+
+fn serverError(conn: *HTTPConn, comptime log_fmt: []const u8, err: anyerror) !void {
+    log.err("server error: " ++ log_fmt, .{err});
+    metrics.internalError();
+    return writeError(conn, 500, "Internal Server Error");
 }
