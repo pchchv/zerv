@@ -612,6 +612,37 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
             else => unreachable,
         };
 
+        pub fn init(allocator: Allocator, signals: [2]posix.fd_t, server: S, config: *const Config) !Self {
+            const loop = try Loop.init();
+            errdefer loop.deinit();
+
+            const websocket = try allocator.create(ws.Worker(WSH));
+            errdefer allocator.destroy(websocket);
+
+            websocket.* = try ws.Worker(WSH).init(allocator, &server._websocket_state);
+            errdefer websocket.deinit();
+
+            const manager = try ConnManager(WSH).init(allocator, websocket, config);
+            errdefer manager.deinit();
+
+            return .{
+                .loop = loop,
+                .config = config,
+                .server = server,
+                .manager = manager,
+                .websocket = websocket,
+                .allocator = allocator,
+                .signal = .{ .read_fd = signals[0], .write_fd = signals[1] },
+                .max_conn = config.workers.max_conn orelse 512,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.websocket.deinit();
+            self.allocator.destroy(self.websocket);
+            self.manager.deinit();
+            self.loop.deinit();
+        }
     };
 }
 
