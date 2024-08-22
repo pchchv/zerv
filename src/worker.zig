@@ -423,6 +423,26 @@ const KQueue = struct {
     }
 };
 
+/// Pipe is used to communicate with the non-blocking worker.
+/// This is necessary because the non-blocking worker is most likely locked in a loop (epoll/kqueue wait).
+/// Therefore, one end of the pipe (the “read” end) is added to the loop.
+/// The write end is used for two things:
+///   1 - The zerv.Server(H) has a copy of the write end and can close it -
+///       this is how the server signals the worker to shutdown.
+///   2 - The non-blocking worker also has a copy of the end of the record.
+///       It is used by the `serveHTTPRequest` method,
+///       which is executed in a pool thread, to transfer control back to the worker.
+const Signal = struct {
+    pos: usize = 0,
+    read_fd: posix.fd_t,
+    write_fd: posix.fd_t,
+    mut: Thread.Mutex = .{},
+    buf: [BUF_LEN]u8 = undefined,
+
+    const BUF_LEN = 4096;
+
+};
+
 pub fn List(comptime T: type) type {
     return struct {
         len: usize = 0,
