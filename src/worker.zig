@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const ws = @import("websocket").server;
 
 const zerv = @import("zerv.zig");
@@ -580,6 +581,38 @@ pub fn timestamp() u32 {
     var ts: posix.timespec = undefined;
     posix.clock_gettime(posix.CLOCK.REALTIME, &ts) catch unreachable;
     return @intCast(ts.sec);
+}
+
+/// This is a NonBlocking worker.
+/// There are N workers, each accepting connections and largely working in isolation from each other
+/// (the only thing they share is the *const config, a reference to the Server and to the Websocket server).
+/// The bulk of the code in this file exists to support the NonBlocking Worker.
+/// Listening socket is nonblocking Request sockets are blocking.
+pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
+    return struct {
+        server: S,
+        loop: Loop, // KQueue or Epoll, depending on the platform
+        allocator: Allocator,
+        // Manager of connections.
+        // This includes a list of active connections the worker is responsible for,
+        // as well as buffer connections can use to get larger []u8,
+        // and a pool of re-usable connection objects to reduce
+        // dynamic allocations needed for new requests.
+        manager: ConnManager(WSH),
+        // Maximum connection a worker should manage.
+        max_conn: usize,
+        config: *const Config,
+        signal: Signal,
+        websocket: *ws.Worker(WSH),
+
+        const Self = @This();
+        const Loop = switch (builtin.os.tag) {
+            .macos, .ios, .tvos, .watchos, .freebsd, .netbsd, .dragonfly, .openbsd => KQueue,
+            .linux => EPoll,
+            else => unreachable,
+        };
+
+    };
 }
 
 fn ConnManager(comptime WSH: type) type {
