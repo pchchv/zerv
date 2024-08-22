@@ -440,7 +440,28 @@ const Signal = struct {
     buf: [BUF_LEN]u8 = undefined,
 
     const BUF_LEN = 4096;
+    const Iterator = struct {
+        signal: *Signal,
+        buf: []const u8,
 
+        fn next(self: *Iterator) ?usize {
+            const buf = self.buf;
+
+            if (buf.len < @sizeOf(usize)) {
+                if (buf.len == 0) {
+                    self.signal.pos = 0;
+                } else {
+                    std.mem.copyForwards(u8, &self.signal.buf, buf);
+                    self.signal.pos = buf.len;
+                }
+                return null;
+            }
+
+            const data = buf[0..@sizeOf(usize)];
+            self.buf = buf[@sizeOf(usize)..];
+            return std.mem.bytesToValue(usize, data);
+        }
+    };
 };
 
 pub fn List(comptime T: type) type {
