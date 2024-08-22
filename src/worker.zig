@@ -743,3 +743,23 @@ fn initializeBufferPool(allocator: Allocator, config: *const Config) !*BufferPoo
     buffer_pool.* = try BufferPool.init(allocator, large_buffer_count, large_buffer_size);
     return buffer_pool;
 }
+
+fn writeError(conn: *HTTPConn, comptime status: u16, comptime msg: []const u8) !void {
+    var i: usize = 0;
+    const socket = conn.stream.handle;
+    const response = std.fmt.comptimePrint("HTTP/1.1 {d} \r\nConnection: Close\r\nContent-Length: {d}\r\n\r\n{s}", .{ status, msg.len, msg });
+    const timeout = std.mem.toBytes(std.posix.timeval{ .sec = 5, .usec = 0 });
+    try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.SNDTIMEO, &timeout);
+    while (i < response.len) {
+        const n = posix.write(socket, response[i..]) catch |err| switch (err) {
+            error.WouldBlock => return error.Timeout,
+            else => return err,
+        };
+
+        if (n == 0) {
+            return error.Closed;
+        }
+
+        i += n;
+    }
+}
