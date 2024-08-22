@@ -15,6 +15,8 @@ const posix = std.posix;
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
+const MAX_TIMEOUT = 2_147_483_647;
+
 // There's some shared logic between the NonBlocking and Blocking workers.
 // Whatever we can de-duplicate, goes here.
 const HTTPConnPool = struct {
@@ -532,6 +534,40 @@ fn ConnManager(comptime WSH: type) type {
 
         const Self = @This();
 
+        fn init(allocator: Allocator, websocket: *anyopaque, config: *const Config) !Self {
+            var buffer_pool = try initializeBufferPool(allocator, config);
+            errdefer buffer_pool.deinit();
+
+            var conn_mem_pool = std.heap.MemoryPool(Conn(WSH)).init(allocator);
+            errdefer conn_mem_pool.deinit();
+
+            const http_conn_pool = try HTTPConnPool.init(allocator, buffer_pool, websocket, config);
+            errdefer http_conn_pool.deinit();
+
+            const retain_allocated_bytes = config.workers.retain_allocated_bytes orelse 4096;
+            const retain_allocated_bytes_keepalive = @max(retain_allocated_bytes, 8192);
+
+            return .{
+                .len = 0,
+                .active_list = .{},
+                .keepalive_list = .{},
+                .allocator = allocator,
+                .buffer_pool = buffer_pool,
+                .conn_mem_pool = conn_mem_pool,
+                .http_conn_pool = http_conn_pool,
+                .retain_allocated_bytes_keepalive = retain_allocated_bytes_keepalive,
+                .timeout_request = config.timeout.request orelse MAX_TIMEOUT,
+                .timeout_keepalive = config.timeout.keepalive orelse MAX_TIMEOUT,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            const allocator = self.allocator;
+            self.buffer_pool.deinit();
+            self.conn_mem_pool.deinit();
+            self.http_conn_pool.deinit();
+            allocator.destroy(self.buffer_pool);
+        }
     };
 }
 
