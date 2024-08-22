@@ -688,6 +688,33 @@ fn ConnManager(comptime WSH: type) type {
 
             return @intCast(next - now);
         }
+
+        fn upgrade(self: *Self, conn: *Conn(WSH), hc: *ws.HandlerConn(WSH)) void {
+            std.debug.assert(conn.protocol.http.state == .active);
+            self.active_list.remove(conn);
+            self.http_conn_pool.release(conn.protocol.http);
+            conn.protocol = .{ .websocket = hc };
+        }
+
+        // The lists are ordered from soonest to timeout to last,
+        // once a connection is found that has not timed out, it can be break;
+        // This returns the next timeout.
+        // Called only in the active and keepalive lists,
+        // which handle only http connections.
+        fn enforceTimeout(self: *Self, list: *List(Conn(WSH)), now: u32) TimeoutResult {
+            var conn = list.head;
+            var count: usize = 0;
+            while (conn) |c| {
+                const timeout = c.protocol.http.timeout;
+                if (timeout > now) {
+                    return .{ .count = count, .timeout = timeout };
+                }
+                count += 1;
+                conn = c.next;
+                self.close(c);
+            }
+            return .{ .count = count, .timeout = null };
+        }
     };
 }
 
