@@ -455,6 +455,24 @@ pub fn List(comptime T: type) type {
             self.tail = node;
             node.next = null;
         }
+
+        pub fn remove(self: *Self, node: *T) void {
+            if (node.prev) |prev| {
+                prev.next = node.next;
+            } else {
+                self.head = node.next;
+            }
+
+            if (node.next) |next| {
+                next.prev = node.prev;
+            } else {
+                self.tail = node.prev;
+            }
+
+            node.prev = null;
+            node.next = null;
+            self.len -= 1;
+        }
     };
 }
 
