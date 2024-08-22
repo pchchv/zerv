@@ -498,6 +498,43 @@ pub fn Conn(comptime WSH: type) type {
     };
 }
 
+fn ConnManager(comptime WSH: type) type {
+    return struct {
+        // Double linked list of Conn a worker is actively servicing.
+        // “Active” connection is one where have received at least 1 byte of
+        // a request and continue to be ‘active’ until a response is sent.
+        active_list: List(Conn(WSH)),
+        // Double linked list of Conn that the worker is monitoring.
+        // Unlike “active” connections,
+        // these connections are between requests
+        // (which is possible due to keepalive).
+        keepalive_list: List(Conn(WSH)),
+        // Number of active connections.
+        // This is the length of the list.
+        len: usize,
+        // A pool of HTTPConn objects.
+        // The pool maintains a configured min # of these.
+        http_conn_pool: HTTPConnPool,
+        // For creating the Conn wrapper.
+        // These are needed in the heap since they are
+        // the ones that are passed to the event loop as data to be passed back.
+        conn_mem_pool: std.heap.MemoryPool(Conn(WSH)),
+        // Request and response processing may require larger buffers than
+        // the static buffered of our req/res states.
+        // BufferPool has large pre-allocated buffers that can be used,
+        // and dynamic allocation will be performed when a larger buffer is emptied or needed.
+        buffer_pool: *BufferPool,
+        allocator: Allocator,
+        timeout_request: u32,
+        timeout_keepalive: u32,
+        // How many bytes should be stored in the arena allocator between uses of keepalive.
+        retain_allocated_bytes_keepalive: usize,
+
+        const Self = @This();
+
+    };
+}
+
 pub fn timestamp() u32 {
     if (comptime @hasDecl(posix, "CLOCK") == false or posix.CLOCK == void) {
         return @intCast(std.time.timestamp());
