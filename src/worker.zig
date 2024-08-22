@@ -2,6 +2,7 @@ const std = @import("std");
 const ws = @import("websocket").server;
 
 const zerv = @import("zerv.zig");
+const metrics = @import("metrics.zig");
 
 const Config = zerv.Config;
 const Request = zerv.Request;
@@ -651,6 +652,37 @@ fn ConnManager(comptime WSH: type) type {
                 posix.close(http_conn.stream.handle);
                 http_conn.deinit(allocator);
             }
+        }
+
+        // Enforces timeouts, and returns when the next timeout should be checked.
+        fn prepareToWait(self: *Self, now: u32) ?i32 {
+            const next_active = self.enforceTimeout(&self.active_list, now);
+            const next_keepalive = self.enforceTimeout(&self.keepalive_list, now);
+
+            {
+                const next_active_count = next_active.count;
+                if (next_active_count > 0) {
+                    metrics.timeoutActive(next_active_count);
+                }
+                const next_keepalive_count = next_keepalive.count;
+                if (next_keepalive_count > 0) {
+                    metrics.timeoutKeepalive(next_active_count);
+                }
+            }
+
+            const next_active_timeout = next_active.timeout;
+            const next_keepalive_timeout = next_keepalive.timeout;
+            if (next_active_timeout == null and next_keepalive_timeout == null) {
+                return null;
+            }
+
+            const next = @min(next_active_timeout orelse MAX_TIMEOUT, next_keepalive_timeout orelse MAX_TIMEOUT);
+            if (next < now) {
+                // can happen if a socket was just about to time out when enforceTimeout was called
+                return 1;
+            }
+
+            return @intCast(next - now);
         }
     };
 }
