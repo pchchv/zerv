@@ -418,6 +418,16 @@ const KQueue = struct {
     }
 };
 
+pub fn List(comptime T: type) type {
+    return struct {
+        len: usize = 0,
+        head: ?*T = null,
+        tail: ?*T = null,
+
+        const Self = @This();
+    };
+}
+
 pub fn timestamp() u32 {
     if (comptime @hasDecl(posix, "CLOCK") == false or posix.CLOCK == void) {
         return @intCast(std.time.timestamp());
