@@ -643,6 +643,58 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
             self.manager.deinit();
             self.loop.deinit();
         }
+
+        pub fn run(self: *Self, listener: posix.fd_t) void {
+            const manager = &self.manager;
+
+            self.loop.monitorAccept(listener) catch |err| {
+                log.err("Failed to add monitor to listening socket: {}", .{err});
+                return;
+            };
+
+            self.loop.monitorSignal(self.signal.read_fd) catch |err| {
+                log.err("Failed to add monitor to signal pipe: {}", .{err});
+                return;
+            };
+
+            var now = timestamp();
+            var thread_pool = self.server._thread_pool;
+            while (true) {
+                const timeout = manager.prepareToWait(now);
+                var it = self.loop.wait(timeout) catch |err| {
+                    log.err("Failed to wait on events: {}", .{err});
+                    std.time.sleep(std.time.ns_per_s);
+                    continue;
+                };
+                now = timestamp();
+
+                while (it.next()) |data| {
+                    if (data == 0) {
+                        self.accept(listener, now) catch |err| {
+                            log.err("Failed to accept connection: {}", .{err});
+                            std.time.sleep(std.time.ns_per_ms * 10);
+                        };
+                        continue;
+                    }
+
+                    if (data == 1) {
+                        if (self.processSignal(now) == false) {
+                            self.manager.shutdown();
+                            self.websocket.shutdown();
+                            // signal was closed, being told to shutdown
+                            return;
+                        }
+                        continue;
+                    }
+
+                    const conn: *Conn(WSH) = @ptrFromInt(data);
+                    if (conn.protocol == .http) {
+                        manager.active(conn, now);
+                    }
+                    thread_pool.spawn(.{ self, conn });
+                }
+            }
+        }
     };
 }
 
