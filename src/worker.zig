@@ -592,6 +592,31 @@ fn ConnManager(comptime WSH: type) type {
             conn.close();
             self.disown(conn);
         }
+
+        fn active(self: *Self, conn: *Conn(WSH), now: u32) void {
+            var http_conn = conn.protocol.http;
+            if (http_conn.state == .active) return;
+
+            // The Connection moves from the keepalive state to the active state.
+
+            http_conn.state = .active;
+            http_conn.request_count += 1;
+            http_conn.timeout = now + self.timeout_request;
+
+            self.keepalive_list.remove(conn);
+            self.active_list.insert(conn);
+        }
+
+        fn keepalive(self: *Self, conn: *Conn(WSH), now: u32) void {
+            var http_conn = conn.protocol.http;
+
+            http_conn.keepalive(self.retain_allocated_bytes_keepalive);
+            http_conn.state = .keepalive;
+            http_conn.timeout = now + self.timeout_keepalive;
+
+            self.active_list.remove(conn);
+            self.keepalive_list.insert(conn);
+        }
     };
 }
 
