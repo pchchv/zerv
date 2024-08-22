@@ -425,6 +425,36 @@ pub fn List(comptime T: type) type {
         tail: ?*T = null,
 
         const Self = @This();
+
+        pub fn insert(self: *Self, node: *T) void {
+            if (self.tail) |tail| {
+                tail.next = node;
+                node.prev = tail;
+                self.tail = node;
+            } else {
+                self.head = node;
+                self.tail = node;
+            }
+
+            self.len += 1;
+            node.next = null;
+        }
+
+        pub fn moveToTail(self: *Self, node: *T) void {
+            const next = node.next orelse return;
+            const prev = node.prev;
+            if (prev) |p| {
+                p.next = next;
+            } else {
+                self.head = next;
+            }
+
+            next.prev = prev;
+            node.prev = self.tail;
+            node.prev.?.next = node;
+            self.tail = node;
+            node.next = null;
+        }
     };
 }
 
