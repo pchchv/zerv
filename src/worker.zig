@@ -617,6 +617,41 @@ fn ConnManager(comptime WSH: type) type {
             self.active_list.remove(conn);
             self.keepalive_list.insert(conn);
         }
+
+        fn disown(self: *Self, conn: *Conn(WSH)) void {
+            switch (conn.protocol) {
+                .http => |http_conn| {
+                    switch (http_conn.state) {
+                        .active => self.active_list.remove(conn),
+                        // A connection that is in keepalive mode cannot be abandoned,
+                        // but it can be closed (by timeout),
+                        // and a call to close will cause a disown.
+                        .keepalive => self.active_list.remove(conn),
+                    }
+                    self.http_conn_pool.release(http_conn);
+                },
+                .websocket => {},
+            }
+
+            self.len -= 1;
+            self.conn_mem_pool.destroy(conn);
+        }
+
+        fn shutdown(self: *Self) void {
+            self.shutdownList(&self.active_list);
+            self.shutdownList(&self.keepalive_list);
+        }
+
+        fn shutdownList(self: *Self, list: *List(Conn(WSH))) void {
+            const allocator = self.allocator;
+            var conn = list.head;
+            while (conn) |c| {
+                conn = c.next;
+                const http_conn = c.protocol.http;
+                posix.close(http_conn.stream.handle);
+                http_conn.deinit(allocator);
+            }
+        }
     };
 }
 
