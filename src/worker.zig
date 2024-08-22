@@ -770,3 +770,25 @@ fn serverError(conn: *HTTPConn, comptime log_fmt: []const u8, err: anyerror) !vo
     metrics.internalError();
     return writeError(conn, 500, "Internal Server Error");
 }
+
+// Handles parsing errors.
+// If this function returns true, it means that Conn has a write-ready body.
+// In this case, the worker (blocking or non-blocking) will want to send a response.
+// If false is returned, the worker probably wants to close the connection.
+// This function ensures that both blocking and non-blocking workers handle these errors with the same response.
+fn requestParseError(conn: *HTTPConn, err: anyerror) !void {
+    switch (err) {
+        error.HeaderTooBig => {
+            metrics.invalidRequest();
+            return writeError(conn, 431, "Request header is too big");
+        },
+        error.UnknownMethod, error.InvalidRequestTarget, error.UnknownProtocol, error.UnsupportedProtocol, error.InvalidHeaderLine, error.InvalidContentLength => {
+            metrics.invalidRequest();
+            return writeError(conn, 400, "Invalid Request");
+        },
+        error.BrokenPipe, error.ConnectionClosed, error.ConnectionResetByPeer => return,
+        else => return serverError(conn, "unknown read/parse error: {}", err),
+    }
+    log.err("unknown parse error: {}", .{err});
+    return err;
+}
