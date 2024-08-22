@@ -568,6 +568,30 @@ fn ConnManager(comptime WSH: type) type {
             self.http_conn_pool.deinit();
             allocator.destroy(self.buffer_pool);
         }
+
+        fn new(self: *Self, now: u32) !*Conn(WSH) {
+            const conn = try self.conn_mem_pool.create();
+            errdefer self.conn_mem_pool.destroy(conn);
+
+            const http_conn = try self.http_conn_pool.acquire();
+            http_conn.state = .active;
+            http_conn.request_count = 1;
+            http_conn.timeout = now + self.timeout_request;
+
+            self.len += 1;
+            conn.* = .{
+                .next = null,
+                .prev = null,
+                .protocol = .{ .http = http_conn },
+            };
+            self.active_list.insert(conn);
+            return conn;
+        }
+
+        fn close(self: *Self, conn: *Conn(WSH)) void {
+            conn.close();
+            self.disown(conn);
+        }
     };
 }
 
