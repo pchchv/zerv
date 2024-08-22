@@ -534,6 +534,10 @@ fn ConnManager(comptime WSH: type) type {
         retain_allocated_bytes_keepalive: usize,
 
         const Self = @This();
+        const TimeoutResult = struct {
+            count: usize,
+            timeout: ?u32,
+        };
 
         fn init(allocator: Allocator, websocket: *anyopaque, config: *const Config) !Self {
             var buffer_pool = try initializeBufferPool(allocator, config);
