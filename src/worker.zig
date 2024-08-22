@@ -462,6 +462,21 @@ const Signal = struct {
             return std.mem.bytesToValue(usize, data);
         }
     };
+
+    // Called in the thread-pool thread to let
+    // the worker know that this connection is being handed back to the worker.
+    fn write(self: *Signal, data: usize) !void {
+        const fd = self.write_fd;
+        const buf = std.mem.asBytes(&data);
+
+        self.mut.lock();
+        defer self.mut.unlock();
+
+        var index: usize = 0;
+        while (index < buf.len) {
+            index += try posix.write(fd, buf[index..]);
+        }
+    }
 };
 
 pub fn List(comptime T: type) type {
