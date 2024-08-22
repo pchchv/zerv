@@ -477,6 +477,21 @@ const Signal = struct {
             index += try posix.write(fd, buf[index..]);
         }
     }
+
+    fn iterator(self: *Signal) ?Iterator {
+        const pos = self.pos;
+        const buf = &self.buf;
+        const n = posix.read(self.read_fd, buf[pos..]) catch |err| switch (err) {
+            error.WouldBlock => return .{ .signal = self, .buf = "" },
+            else => return null,
+        };
+
+        if (n == 0) {
+            return null;
+        }
+
+        return .{ .signal = self, .buf = buf[0 .. pos + n] };
+    }
 };
 
 pub fn List(comptime T: type) type {
