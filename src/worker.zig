@@ -1,4 +1,5 @@
 const std = @import("std");
+const ws = @import("websocket").server;
 
 const zerv = @import("zerv.zig");
 
@@ -472,6 +473,27 @@ pub fn List(comptime T: type) type {
             node.prev = null;
             node.next = null;
             self.len -= 1;
+        }
+    };
+}
+
+pub fn Conn(comptime WSH: type) type {
+    return struct {
+        protocol: union(enum) {
+            http: *HTTPConn,
+            websocket: *ws.HandlerConn(WSH),
+        },
+
+        next: ?*Conn(WSH),
+        prev: ?*Conn(WSH),
+
+        const Self = @This();
+
+        fn close(self: *Self) void {
+            switch (self.protocol) {
+                .http => |http_conn| posix.close(http_conn.stream.handle),
+                .websocket => |hc| hc.conn.close(.{}) catch {},
+            }
         }
     };
 }
