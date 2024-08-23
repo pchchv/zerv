@@ -850,6 +850,7 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
         timeout_write_error: Timeout,
         retain_allocated_bytes_keepalive: usize,
 
+        const Self = @This();
         const Timeout = struct {
             sec: u32,
             timeval: [@sizeOf(std.posix.timeval)]u8,
@@ -863,6 +864,55 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
                 };
             }
         };
+
+        pub fn init(allocator: Allocator, server: S, config: *const Config) !Self {
+            const buffer_pool = try initializeBufferPool(allocator, config);
+            errdefer allocator.destroy(buffer_pool);
+
+            errdefer buffer_pool.deinit();
+
+            var timeout_request: ?Timeout = null;
+            if (config.timeout.request) |sec| {
+                timeout_request = Timeout.init(sec);
+            } else if (config.timeout.keepalive != null) {
+                // need to set this up, so that when we switch from keepalive state to request parsing state,
+                // we remove the timeout
+                timeout_request = Timeout.init(0);
+            }
+
+            var timeout_keepalive: ?Timeout = null;
+            if (config.timeout.keepalive) |sec| {
+                timeout_keepalive = Timeout.init(sec);
+            } else if (timeout_request != null) {
+                // need to set this up,
+                // so that the timeout is removed when going from the request processing state to the kepealive state
+                timeout_keepalive = Timeout.init(0);
+            }
+
+            const websocket = try allocator.create(ws.Worker(WSH));
+            errdefer allocator.destroy(websocket);
+
+            websocket.* = try ws.Worker(WSH).init(allocator, &server._websocket_state);
+            errdefer websocket.deinit();
+
+            const http_conn_pool = try HTTPConnPool.init(allocator, buffer_pool, websocket, config);
+            errdefer http_conn_pool.deinit();
+
+            const retain_allocated_bytes_keepalive = config.workers.retain_allocated_bytes orelse 8192;
+            return .{
+                .running = true,
+                .server = server,
+                .config = config,
+                .allocator = allocator,
+                .http_conn_pool = http_conn_pool,
+                .websocket = websocket,
+                .buffer_pool = buffer_pool,
+                .timeout_request = timeout_request,
+                .timeout_keepalive = timeout_keepalive,
+                .timeout_write_error = Timeout.init(5),
+                .retain_allocated_bytes_keepalive = retain_allocated_bytes_keepalive,
+            };
+        }
     };
 }
 
