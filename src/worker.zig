@@ -913,6 +913,18 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
                 .retain_allocated_bytes_keepalive = retain_allocated_bytes_keepalive,
             };
         }
+
+        pub fn deinit(self: *Self) void {
+            const allocator = self.allocator;
+
+            self.websocket.deinit();
+            allocator.destroy(self.websocket);
+
+            self.http_conn_pool.deinit();
+
+            self.buffer_pool.deinit();
+            allocator.destroy(self.buffer_pool);
+        }
     };
 }
 
