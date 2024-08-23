@@ -733,6 +733,53 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
                 try self.loop.monitorRead(socket, @intFromPtr(conn), false);
             }
         }
+
+        fn processSignal(self: *Self, now: u32) bool {
+            // if there is no iterator (even empty),
+            // it means that the signal was closed,
+            // which indicates a shutdown
+            var it = self.signal.iterator() orelse return false;
+            while (it.next()) |data| {
+                const conn: *Conn(WSH) = @ptrFromInt(data);
+                switch (conn.protocol) {
+                    .http => |http_conn| {
+                        switch (http_conn.handover) {
+                            .keepalive => {
+                                self.loop.monitorRead(http_conn.stream.handle, @intFromPtr(conn), true) catch {
+                                    metrics.internalError();
+                                    self.manager.close(conn);
+                                    continue;
+                                };
+                                self.manager.keepalive(conn, now);
+                            },
+                            .close => self.manager.close(conn),
+                            .disown => {
+                                if (self.loop.remove(http_conn.stream.handle)) {
+                                    self.manager.disown(conn);
+                                } else |_| {
+                                    self.manager.close(conn);
+                                }
+                            },
+                            .websocket => |ptr| {
+                                const hc: *ws.HandlerConn(WSH) = @ptrCast(@alignCast(ptr));
+                                self.manager.upgrade(conn, hc);
+                                self.loop.monitorRead(hc.socket, @intFromPtr(conn), true) catch {
+                                    metrics.internalError();
+                                    self.manager.close(conn);
+                                    continue;
+                                };
+                            },
+                        }
+                    },
+                    .websocket => {
+                        // websocket does not use the signaling mechanism to get
+                        // the socket to the event loop after processing a message
+                        unreachable;
+                    },
+                }
+            }
+            return true;
+        }
     };
 }
 
