@@ -34,5 +34,14 @@ pub fn Part(comptime A: type) type {
                 .parts = StringHashMap(Part(A)).init(allocator),
             };
         }
+
+        pub fn clear(self: *Self, allocator: Allocator) void {
+            self.glob = null;
+            self.glob_all = false;
+            self.action = null;
+            self.param_part = null;
+            self.param_names = null;
+            self.parts = StringHashMap(Part(A)).init(allocator);
+        }
     };
 }
