@@ -2,6 +2,8 @@ const std = @import("std");
 
 const zerv = @import("zerv.zig");
 
+const Params = @import("params.zig").Params;
+
 const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
@@ -92,4 +94,66 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             allocator.destroy(self._arena);
         }
     };
+}
+
+fn getRoute(comptime A: type, root: Part(A), url: []const u8, params: *Params) ?A {
+    if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
+        return root.action;
+    }
+
+    var normalized = url;
+    if (normalized[0] == '/') {
+        normalized = normalized[1..];
+    }
+
+    if (normalized[normalized.len - 1] == '/') {
+        normalized = normalized[0 .. normalized.len - 1];
+    }
+
+    var r = root;
+    var route_part = &r;
+    var pos: usize = 0;
+    var glob_all: ?*Part(A) = null;
+    while (pos < normalized.len) {
+        const index = std.mem.indexOfScalarPos(u8, normalized, pos, '/') orelse normalized.len;
+        const part = normalized[pos..index];
+
+        // most specific "glob_all" route we find,
+        // which is the one most deeply nested,
+        // is the one we'll use in case there are no other matches.
+        if (route_part.glob_all) {
+            glob_all = route_part;
+        }
+
+        if (route_part.parts.getPtr(part)) |child| {
+            route_part = child;
+        } else if (route_part.param_part) |child| {
+            params.addValue(part);
+            route_part = child;
+        } else if (route_part.glob) |child| {
+            route_part = child;
+        } else {
+            params.len = 0;
+            if (glob_all) |fallback| {
+                return fallback.action;
+            }
+            return null;
+        }
+        pos = index + 1; // +1 tos skip the slash on the next iteration
+    }
+
+    if (route_part.action) |action| {
+        if (route_part.param_names) |names| {
+            params.addNames(names);
+        } else {
+            params.len = 0;
+        }
+        return action;
+    }
+
+    params.len = 0;
+    if (glob_all) |fallback| {
+        return fallback.action;
+    }
+    return null;
 }
