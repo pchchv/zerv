@@ -113,6 +113,27 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
                 zerv.Method.OPTIONS => getRoute(DispatchableAction, self._options, url, params),
             };
         }
+
+        pub fn get(self: *Self, path: []const u8, action: Action) void {
+            self.getC(path, action, .{});
+        }
+
+        pub fn tryGet(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryGetC(path, action, .{});
+        }
+
+        pub fn getC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryGetC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryGetC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._get, path, da);
+        }
     };
 }
 
