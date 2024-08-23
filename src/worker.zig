@@ -925,6 +925,33 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
             self.buffer_pool.deinit();
             allocator.destroy(self.buffer_pool);
         }
+
+        pub fn listen(self: *Self, listener: posix.socket_t) void {
+            var server = self.server;
+            while (true) {
+                var address: net.Address = undefined;
+                var address_len: posix.socklen_t = @sizeOf(net.Address);
+                const socket = posix.accept(listener, &address.any, &address_len, posix.SOCK.CLOEXEC) catch |err| {
+                    if (err == error.ConnectionAborted or err == error.SocketNotListening) {
+                        return;
+                    }
+                    log.err("Failed to accept socket: {}", .{err});
+                    continue;
+                };
+                metrics.connection();
+                // calls handleConnection through the server's thread_pool
+                server._thread_pool.spawn(.{ self, socket, address });
+            }
+        }
+
+        fn handleWebSocket(self: *const Self, hc: *ws.HandlerConn(WSH)) !void {
+            posix.setsockopt(hc.socket, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &std.mem.toBytes(posix.timeval{ .sec = 0, .usec = 0 })) catch |err| {
+                self.websocket.cleanupConn(hc);
+                return err;
+            };
+            // closes the connection before returning
+            return self.websocket.worker.readLoop(hc);
+        }
     };
 }
 
