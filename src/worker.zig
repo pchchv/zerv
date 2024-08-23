@@ -780,6 +780,56 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
             }
             return true;
         }
+
+        /// Entry-point to the thread pool.
+        /// The `thread_buf` is a thread-specific buffer that can use as needed.
+        /// Currently, for an HTTP connection,
+        /// it is only called when there is a complete HTTP request ready to be processed.
+        /// For a WebSocket packet,
+        /// it is called when it has the data available - it may or may not have a complete message ready.
+        pub fn processData(self: *Self, conn: *Conn(WSH), thread_buf: []u8) void {
+            switch (conn.protocol) {
+                .http => |http_conn| {
+                    const stream = http_conn.stream;
+                    const done = http_conn.req_state.parse(stream) catch |err| {
+                        requestParseError(http_conn, err) catch {};
+                        http_conn.handover = .close;
+                        self.signal.write(@intFromPtr(conn)) catch @panic("todo");
+                        return;
+                    };
+
+                    if (done == false) {
+                        // needed to wait for more data
+                        self.loop.monitorRead(stream.handle, @intFromPtr(conn), true) catch |err| {
+                            serverError(http_conn, "unknown event loop error: {}", err) catch {};
+                            http_conn.handover = .close;
+                            self.signal.write(@intFromPtr(conn)) catch @panic("todo");
+                        };
+                        return;
+                    }
+
+                    metrics.request();
+                    self.server.handleRequest(http_conn, thread_buf);
+                    self.signal.write(@intFromPtr(conn)) catch @panic("todo");
+                },
+                .websocket => |hc| {
+                    var ws_conn = &hc.conn;
+                    const success = self.websocket.worker.dataAvailable(hc, thread_buf);
+                    if (success == false) {
+                        ws_conn.close(.{ .code = 4997, .reason = "wsz" }) catch {};
+                        self.websocket.cleanupConn(hc);
+                    } else if (ws_conn.isClosed()) {
+                        self.websocket.cleanupConn(hc);
+                    } else {
+                        self.loop.monitorRead(hc.socket, @intFromPtr(conn), true) catch |err| {
+                            log.debug("({}) failed to add read event monitor: {}", .{ ws_conn.address, err });
+                            ws_conn.close(.{ .code = 4998, .reason = "wsz" }) catch {};
+                            self.websocket.cleanupConn(hc);
+                        };
+                    }
+                },
+            }
+        }
     };
 }
 
