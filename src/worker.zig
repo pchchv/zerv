@@ -849,6 +849,20 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
         timeout_keepalive: ?Timeout,
         timeout_write_error: Timeout,
         retain_allocated_bytes_keepalive: usize,
+
+        const Timeout = struct {
+            sec: u32,
+            timeval: [@sizeOf(std.posix.timeval)]u8,
+
+            // if sec is null,
+            // it means to cancel the timeout.
+            fn init(sec: ?u32) Timeout {
+                return .{
+                    .sec = if (sec) |s| s else MAX_TIMEOUT,
+                    .timeval = std.mem.toBytes(std.posix.timeval{ .sec = @intCast(sec orelse 0), .usec = 0 }),
+                };
+            }
+        };
     };
 }
 
