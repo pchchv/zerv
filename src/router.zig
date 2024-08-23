@@ -116,6 +116,80 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
     };
 }
 
+fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const u8, action: A) !void {
+    if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
+        root.action = action;
+        return;
+    }
+
+    var normalized = url;
+    if (normalized[0] == '/') {
+        normalized = normalized[1..];
+    }
+    if (normalized[normalized.len - 1] == '/') {
+        normalized = normalized[0 .. normalized.len - 1];
+    }
+
+    var param_name_collector = std.ArrayList([]const u8).init(allocator);
+    defer param_name_collector.deinit();
+
+    var route_part = root;
+    var it = std.mem.splitScalar(u8, normalized, '/');
+    while (it.next()) |part| {
+        if (part[0] == ':') {
+            try param_name_collector.append(part[1..]);
+            if (route_part.param_part) |child| {
+                route_part = child;
+            } else {
+                const child = try allocator.create(Part(A));
+                child.clear(allocator);
+                route_part.param_part = child;
+                route_part = child;
+            }
+        } else if (part.len == 1 and part[0] == '*') {
+            // if this route_part didn't already have an action,
+            // then this glob also includes it
+            if (route_part.action == null) {
+                route_part.action = action;
+            }
+
+            if (route_part.glob) |child| {
+                route_part = child;
+            } else {
+                const child = try allocator.create(Part(A));
+                child.clear(allocator);
+                route_part.glob = child;
+                route_part = child;
+            }
+        } else {
+            const gop = try route_part.parts.getOrPut(part);
+            if (gop.found_existing) {
+                route_part = gop.value_ptr;
+            } else {
+                route_part = gop.value_ptr;
+                route_part.clear(allocator);
+            }
+        }
+    }
+
+    const param_name_count = param_name_collector.items.len;
+    if (param_name_count > 0) {
+        const param_names = try allocator.alloc([]const u8, param_name_count);
+        for (param_name_collector.items, 0..) |name, i| {
+            param_names[i] = name;
+        }
+        route_part.param_names = param_names;
+    }
+
+    // if the route ended with a '*' (importantly, as opposed to a '*/')
+    // then this is a "glob all" route will.
+    // Important, use "url" and not "normalized" since normalized stripped out the trailing / (if any),
+    // which is important here
+    route_part.glob_all = url[url.len - 1] == '*';
+
+    route_part.action = action;
+}
+
 fn getRoute(comptime A: type, root: Part(A), url: []const u8, params: *Params) ?A {
     if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
         return root.action;
