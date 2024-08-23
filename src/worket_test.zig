@@ -9,6 +9,32 @@ const TestNode = struct {
     prev: ?*TestNode = null,
 };
 
+fn expectList(expected: []const i32, list: w.List(TestNode)) !void {
+    if (expected.len == 0) {
+        try t.expectEqual(null, list.head);
+        try t.expectEqual(null, list.tail);
+        return;
+    }
+
+    var i: usize = 0;
+    var next = list.head;
+    while (next) |node| {
+        try t.expectEqual(expected[i], node.id);
+        i += 1;
+        next = node.next;
+    }
+    try t.expectEqual(expected.len, i);
+
+    i = expected.len;
+    var prev = list.tail;
+    while (prev) |node| {
+        i -= 1;
+        try t.expectEqual(expected[i], node.id);
+        prev = node.prev;
+    }
+    try t.expectEqual(0, i);
+}
+
 test "HTTPConnPool" {
     var bp = try BufferPool.init(t.allocator, 2, 64);
     defer bp.deinit();
