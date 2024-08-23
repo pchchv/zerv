@@ -2,6 +2,7 @@ const std = @import("std");
 
 const zerv = @import("zerv.zig");
 
+const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
 pub fn Config(comptime Handler: type, comptime Action: type) type {
@@ -22,5 +23,16 @@ pub fn Part(comptime A: type) type {
         parts: StringHashMap(Part(A)),
 
         const Self = @This();
+
+        pub fn init(allocator: Allocator) !Self {
+            return Self{
+                .glob = null,
+                .glob_all = false,
+                .action = null,
+                .param_part = null,
+                .param_names = null,
+                .parts = StringHashMap(Part(A)).init(allocator),
+            };
+        }
     };
 }
