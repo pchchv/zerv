@@ -833,6 +833,25 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
     };
 }
 
+/// This is a Blocking worker.
+/// It is very different from the NonBlocking one and much simpler.
+/// (WSH is a websocket handler, and it can be void)
+pub fn Blocking(comptime S: type, comptime WSH: type) type {
+    return struct {
+        server: S,
+        running: bool,
+        config: *const Config,
+        allocator: Allocator,
+        buffer_pool: *BufferPool,
+        http_conn_pool: HTTPConnPool,
+        websocket: *ws.Worker(WSH),
+        timeout_request: ?Timeout,
+        timeout_keepalive: ?Timeout,
+        timeout_write_error: Timeout,
+        retain_allocated_bytes_keepalive: usize,
+    };
+}
+
 fn ConnManager(comptime WSH: type) type {
     return struct {
         // Double linked list of Conn a worker is actively servicing.
