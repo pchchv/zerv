@@ -61,3 +61,76 @@ test "HTTPConnPool" {
     p.release(s3);
     p.release(s4);
 }
+
+test "List: insert & remove" {
+    var list = w.List(TestNode){};
+    try expectList(&.{}, list);
+
+    var n1 = TestNode{ .id = 1 };
+    list.insert(&n1);
+    try expectList(&.{1}, list);
+
+    list.remove(&n1);
+    try expectList(&.{}, list);
+
+    var n2 = TestNode{ .id = 2 };
+    list.insert(&n2);
+    list.insert(&n1);
+    try expectList(&.{ 2, 1 }, list);
+
+    var n3 = TestNode{ .id = 3 };
+    list.insert(&n3);
+    try expectList(&.{ 2, 1, 3 }, list);
+
+    list.remove(&n1);
+    try expectList(&.{ 2, 3 }, list);
+
+    list.insert(&n1);
+    try expectList(&.{ 2, 3, 1 }, list);
+
+    list.remove(&n2);
+    try expectList(&.{ 3, 1 }, list);
+
+    list.remove(&n1);
+    try expectList(&.{3}, list);
+
+    list.remove(&n3);
+    try expectList(&.{}, list);
+}
+
+test "List: moveToTail" {
+    var list = w.List(TestNode){};
+    try expectList(&.{}, list);
+
+    var n1 = TestNode{ .id = 1 };
+    list.insert(&n1);
+    // list.moveToTail(&n1);
+    try expectList(&.{1}, list);
+
+    var n2 = TestNode{ .id = 2 };
+    list.insert(&n2);
+
+    list.moveToTail(&n1);
+    try expectList(&.{ 2, 1 }, list);
+
+    list.moveToTail(&n1);
+    try expectList(&.{ 2, 1 }, list);
+
+    list.moveToTail(&n2);
+    try expectList(&.{ 1, 2 }, list);
+
+    var n3 = TestNode{ .id = 3 };
+    list.insert(&n3);
+
+    list.moveToTail(&n1);
+    try expectList(&.{ 2, 3, 1 }, list);
+
+    list.moveToTail(&n1);
+    try expectList(&.{ 2, 3, 1 }, list);
+
+    list.moveToTail(&n2);
+    try expectList(&.{ 3, 1, 2 }, list);
+
+    list.moveToTail(&n1);
+    try expectList(&.{ 3, 2, 1 }, list);
+}
