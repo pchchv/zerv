@@ -45,3 +45,25 @@ pub fn Part(comptime A: type) type {
         }
     };
 }
+
+pub fn Router(comptime Handler: type, comptime Action: type) type {
+    const Dispatcher = zerv.Dispatcher(Handler, Action);
+    const DispatchableAction = zerv.DispatchableAction(Handler, Action);
+
+    return struct {
+        _arena: *std.heap.ArenaAllocator,
+        _aa: Allocator,
+        _get: Part(DispatchableAction),
+        _put: Part(DispatchableAction),
+        _post: Part(DispatchableAction),
+        _head: Part(DispatchableAction),
+        _patch: Part(DispatchableAction),
+        _trace: Part(DispatchableAction),
+        _delete: Part(DispatchableAction),
+        _options: Part(DispatchableAction),
+        _default_handler: Handler,
+        _default_dispatcher: Dispatcher,
+
+        const Self = @This();
+    };
+}
