@@ -952,6 +952,47 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
             // closes the connection before returning
             return self.websocket.worker.readLoop(hc);
         }
+
+        /// handleConnection is called on the worker thread.
+        /// `thread_buf` is a thread-specific buffer.
+        pub fn handleConnection(self: *Self, socket: posix.socket_t, address: net.Address, thread_buf: []u8) void {
+            var conn = self.http_conn_pool.acquire() catch |err| {
+                log.err("Failed to initialize connection: {}", .{err});
+                return;
+            };
+
+            conn.stream = .{ .handle = socket };
+            conn.address = address;
+
+            var is_keepalive = false;
+            while (true) {
+                switch (self.handleRequest(conn, is_keepalive, thread_buf) catch .close) {
+                    .keepalive => {
+                        is_keepalive = true;
+                        conn.keepalive(self.retain_allocated_bytes_keepalive);
+                    },
+                    .close => {
+                        posix.close(socket);
+                        self.http_conn_pool.release(conn);
+                        return;
+                    },
+                    .websocket => |ptr| {
+                        const hc: *ws.HandlerConn(WSH) = @ptrCast(@alignCast(ptr));
+                        self.http_conn_pool.release(conn);
+                        // blocking read loop
+                        // will close the connection
+                        self.handleWebSocket(hc) catch |err| {
+                            log.err("({} websocket connection error: {}", .{ address, err });
+                        };
+                        return;
+                    },
+                    .disown => {
+                        self.http_conn_pool.release(conn);
+                        return;
+                    },
+                }
+            }
+        }
     };
 }
 
