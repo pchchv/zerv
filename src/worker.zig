@@ -993,6 +993,62 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
                 }
             }
         }
+
+        fn handleRequest(self: *const Self, conn: *HTTPConn, is_keepalive: bool, thread_buf: []u8) !HTTPConn.Handover {
+            const timeout: ?Timeout = if (is_keepalive) self.timeout_keepalive else self.timeout_request;
+            const stream = conn.stream;
+            var deadline: ?i64 = null;
+            if (timeout) |to| {
+                if (is_keepalive == false) {
+                    deadline = timestamp() + to.sec;
+                }
+                try posix.setsockopt(stream.handle, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &to.timeval);
+            }
+
+            var is_first = true;
+            while (true) {
+                const done = conn.req_state.parse(stream) catch |err| {
+                    if (err == error.WouldBlock) {
+                        if (is_keepalive and is_first) {
+                            metrics.timeoutKeepalive(1);
+                        } else {
+                            metrics.timeoutActive(1);
+                        }
+                        return .close;
+                    }
+                    requestParseError(conn, err) catch {};
+                    return .close;
+                };
+                if (done) {
+                    // have a complete request, time to process it
+                    break;
+                }
+
+                if (is_keepalive) {
+                    if (is_first) {
+                        if (self.timeout_request) |to| {
+                            // This was the first data from a keepalive request.
+                            // It works on the keepalive timeout (if there was one),
+                            // and now needs to switch to the request timeout.
+                            // This could be the actual timeout, or it could just be removing the keepalive timeout.
+                            // Either way, it's the same code (timeval will just be set to 0 in the second case)
+                            deadline = timestamp() + to.sec;
+                            try posix.setsockopt(stream.handle, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &to.timeval);
+                        }
+                        is_first = false;
+                    }
+                } else if (deadline) |dl| {
+                    if (timestamp() > dl) {
+                        metrics.timeoutActive(1);
+                        return .close;
+                    }
+                }
+            }
+
+            metrics.request();
+            self.server.handleRequest(conn, thread_buf);
+            return conn.handover;
+        }
     };
 }
 
