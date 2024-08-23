@@ -65,5 +65,31 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
         _default_dispatcher: Dispatcher,
 
         const Self = @This();
+
+        pub fn init(allocator: Allocator, default_dispatcher: Dispatcher, default_handler: Handler) !Self {
+            const arena = try allocator.create(std.heap.ArenaAllocator);
+            arena.* = std.heap.ArenaAllocator.init(allocator);
+            const aa = arena.allocator();
+
+            return Self{
+                ._arena = arena,
+                ._aa = aa,
+                ._default_handler = default_handler,
+                ._default_dispatcher = default_dispatcher,
+                ._get = try Part(DispatchableAction).init(aa),
+                ._head = try Part(DispatchableAction).init(aa),
+                ._post = try Part(DispatchableAction).init(aa),
+                ._put = try Part(DispatchableAction).init(aa),
+                ._patch = try Part(DispatchableAction).init(aa),
+                ._trace = try Part(DispatchableAction).init(aa),
+                ._delete = try Part(DispatchableAction).init(aa),
+                ._options = try Part(DispatchableAction).init(aa),
+            };
+        }
+
+        pub fn deinit(self: *Self, allocator: Allocator) void {
+            self._arena.deinit();
+            allocator.destroy(self._arena);
+        }
     };
 }
