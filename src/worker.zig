@@ -695,6 +695,44 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
                 }
             }
         }
+
+        fn accept(self: *Self, listener: posix.fd_t, now: u32) !void {
+            var manager = &self.manager;
+            const max_conn = self.max_conn;
+            while (@atomicLoad(usize, &manager.len, .monotonic) < max_conn) {
+                var address: net.Address = undefined;
+                var address_len: posix.socklen_t = @sizeOf(net.Address);
+                const socket = posix.accept(listener, &address.any, &address_len, posix.SOCK.CLOEXEC) catch |err| {
+                    // When available, use SO_REUSEPORT_LB or SO_REUSEPORT,
+                    // so WouldBlock should not be possible in these cases,
+                    // but if it is not available,
+                    // this error should be ignored as it means another thread has taken it away.
+                    return if (err == error.WouldBlock) {} else err;
+                };
+                errdefer posix.close(socket);
+                metrics.connection();
+
+                {
+                    // socket is _probably_ in NONBLOCKING mode
+                    // (it inherits the flag from the listening socket)
+                    const flags = try posix.fcntl(socket, posix.F.GETFL, 0);
+                    const nonblocking = @as(u32, @bitCast(posix.O{ .NONBLOCK = true }));
+                    if (flags & nonblocking == nonblocking) {
+                        // Is in nonblocking mode.
+                        // Disable that flag to put it in blocking mode.
+                        _ = try posix.fcntl(socket, posix.F.SETFL, flags & ~nonblocking);
+                    }
+                }
+                const conn = try manager.new(now);
+                errdefer manager.close(conn);
+
+                var http_conn = conn.protocol.http;
+                http_conn.stream = .{ .handle = socket };
+                http_conn.address = address;
+
+                try self.loop.monitorRead(socket, @intFromPtr(conn), false);
+            }
+        }
     };
 }
 
