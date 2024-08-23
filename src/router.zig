@@ -131,8 +131,8 @@ fn getRoute(comptime A: type, root: Part(A), url: []const u8, params: *Params) ?
     }
 
     var r = root;
-    var route_part = &r;
     var pos: usize = 0;
+    var route_part = &r;
     var glob_all: ?*Part(A) = null;
     while (pos < normalized.len) {
         const index = std.mem.indexOfScalarPos(u8, normalized, pos, '/') orelse normalized.len;
