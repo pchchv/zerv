@@ -93,6 +93,26 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             self._arena.deinit();
             allocator.destroy(self._arena);
         }
+
+        pub fn dispatcher(self: *Self, d: Dispatcher) void {
+            self._default_dispatcher = d;
+        }
+
+        pub fn handler(self: *Self, h: Handler) void {
+            self.default_handler = h;
+        }
+
+        pub fn route(self: Self, method: zerv.Method, url: []const u8, params: *Params) ?DispatchableAction {
+            return switch (method) {
+                zerv.Method.GET => getRoute(DispatchableAction, self._get, url, params),
+                zerv.Method.POST => getRoute(DispatchableAction, self._post, url, params),
+                zerv.Method.PUT => getRoute(DispatchableAction, self._put, url, params),
+                zerv.Method.DELETE => getRoute(DispatchableAction, self._delete, url, params),
+                zerv.Method.PATCH => getRoute(DispatchableAction, self._patch, url, params),
+                zerv.Method.HEAD => getRoute(DispatchableAction, self._head, url, params),
+                zerv.Method.OPTIONS => getRoute(DispatchableAction, self._options, url, params),
+            };
+        }
     };
 }
 
