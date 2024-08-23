@@ -3,6 +3,12 @@ const w = @import("worker.zig");
 
 const BufferPool = @import("buffer.zig").Pool;
 
+const TestNode = struct {
+    id: i32,
+    next: ?*TestNode = null,
+    prev: ?*TestNode = null,
+};
+
 test "HTTPConnPool" {
     var bp = try BufferPool.init(t.allocator, 2, 64);
     defer bp.deinit();
