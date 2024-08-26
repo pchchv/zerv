@@ -360,6 +360,38 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryPutC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryPutC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn post(self: *Self, path: []const u8, action: Action) void {
+            self.postC(path, action, self._config);
+        }
+
+        pub fn postC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.postC(self.createPath(path), action, config);
+        }
+
+        pub fn tryPost(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryPostC(path, action, self._config);
+        }
+
+        pub fn tryPostC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryPostC(self.tryCreatePath(path), action, config);
+        }
+
+        pub fn patch(self: *Self, path: []const u8, action: Action) void {
+            self.patchC(path, action, self._config);
+        }
+
+        pub fn patchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.patchC(self.createPath(path), action, config);
+        }
+
+        pub fn tryPatch(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryPatchC(path, action, self._config);
+        }
+
+        pub fn tryPatchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryPatchC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
