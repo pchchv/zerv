@@ -156,7 +156,6 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             try addRoute(DispatchableAction, self._aa, &self._put, path, da);
         }
 
-
         pub fn post(self: *Self, path: []const u8, action: Action) void {
             self.postC(path, action, .{});
         }
