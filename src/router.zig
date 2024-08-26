@@ -344,6 +344,22 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryGetC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryGetC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn put(self: *Self, path: []const u8, action: Action) void {
+            self.putC(path, action, self._config);
+        }
+
+        pub fn putC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.putC(self.createPath(path), action, config);
+        }
+
+        pub fn tryPut(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryPutC(path, action, self._config);
+        }
+
+        pub fn tryPutC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryPutC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
