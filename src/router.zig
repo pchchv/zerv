@@ -408,6 +408,38 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryHeadC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryHeadC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn trace(self: *Self, path: []const u8, action: Action) void {
+            self.patchC(path, action, self._config);
+        }
+
+        pub fn traceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.patchC(self.createPath(path), action, config);
+        }
+
+        pub fn tryTrace(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryTraceC(path, action, self._config);
+        }
+
+        pub fn tryTraceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryTraceC(self.tryCreatePath(path), action, config);
+        }
+
+        pub fn delete(self: *Self, path: []const u8, action: Action) void {
+            self.deleteC(path, action, self._config);
+        }
+
+        pub fn deleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.deleteC(self.createPath(path), action, config);
+        }
+
+        pub fn tryDelete(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryDeleteC(path, action, self._config);
+        }
+
+        pub fn tryDeleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryDeleteC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
