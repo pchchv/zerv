@@ -178,6 +178,29 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             try addRoute(DispatchableAction, self._aa, &self._post, path, da);
         }
 
+        pub fn head(self: *Self, path: []const u8, action: Action) void {
+            self.headC(path, action, .{});
+        }
+
+        pub fn tryHead(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryHeadC(path, action, .{});
+        }
+
+        pub fn headC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryHeadC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryHeadC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._head, path, da);
+        }
+    };
+}
+
 fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const u8, action: A) !void {
     if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
         root.action = action;
