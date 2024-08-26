@@ -308,6 +308,17 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
     };
 }
 
+pub fn Group(comptime Handler: type, comptime Action: type) type {
+    return struct {
+        _aa: Allocator,
+        _prefix: []const u8,
+        _router: *Router(Handler, Action),
+        _config: Config(Handler, Action),
+
+        const Self = @This();
+    };
+}
+
 fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const u8, action: A) !void {
     if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
         root.action = action;
