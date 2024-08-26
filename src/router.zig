@@ -328,6 +328,22 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
                 ._aa = router._arena.allocator(),
             };
         }
+
+        pub fn get(self: *Self, path: []const u8, action: Action) void {
+            self.getC(path, action, self._config);
+        }
+
+        pub fn getC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.getC(self.createPath(path), action, config);
+        }
+
+        pub fn tryGet(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryGetC(path, action, self._config);
+        }
+
+        pub fn tryGetC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryGetC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
