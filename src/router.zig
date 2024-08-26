@@ -219,6 +219,27 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             };
             try addRoute(DispatchableAction, self._aa, &self._patch, path, da);
         }
+
+        pub fn trace(self: *Self, path: []const u8, action: Action) void {
+            self.traceC(path, action, .{});
+        }
+
+        pub fn tryTrace(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryTraceC(path, action, .{});
+        }
+
+        pub fn traceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryTraceC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryTraceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._trace, path, da);
+        }
     };
 }
 
