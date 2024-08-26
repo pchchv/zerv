@@ -440,6 +440,22 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryDeleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryDeleteC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn options(self: *Self, path: []const u8, action: Action) void {
+            self.optionsC(path, action, self._config);
+        }
+
+        pub fn optionsC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.optionsC(self.createPath(path), action, config);
+        }
+
+        pub fn tryOptions(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryOptionsC(path, action, self._config);
+        }
+
+        pub fn tryOptionsC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryOptionsC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
