@@ -156,6 +156,28 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             try addRoute(DispatchableAction, self._aa, &self._put, path, da);
         }
 
+
+        pub fn post(self: *Self, path: []const u8, action: Action) void {
+            self.postC(path, action, .{});
+        }
+
+        pub fn tryPost(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryPostC(path, action, .{});
+        }
+
+        pub fn postC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryPostC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryPostC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._post, path, da);
+        }
+
 fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const u8, action: A) !void {
     if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
         root.action = action;
