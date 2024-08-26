@@ -240,6 +240,27 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             };
             try addRoute(DispatchableAction, self._aa, &self._trace, path, da);
         }
+
+        pub fn delete(self: *Self, path: []const u8, action: Action) void {
+            self.deleteC(path, action, .{});
+        }
+
+        pub fn tryDelete(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryDeleteC(path, action, .{});
+        }
+
+        pub fn deleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryDeleteC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryDeleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._delete, path, da);
+        }
     };
 }
 
