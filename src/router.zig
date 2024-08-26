@@ -472,6 +472,10 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryAllC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryAllC(self.tryCreatePath(path), action, config);
         }
+
+        fn createPath(self: *Self, path: []const u8) []const u8 {
+            return self.tryCreatePath(path) catch unreachable;
+        }
     };
 }
 
