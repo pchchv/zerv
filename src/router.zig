@@ -476,6 +476,29 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         fn createPath(self: *Self, path: []const u8) []const u8 {
             return self.tryCreatePath(path) catch unreachable;
         }
+
+        fn tryCreatePath(self: *Self, path: []const u8) ![]const u8 {
+            var prefix = self._prefix;
+            if (prefix.len == 0) {
+                return path;
+            }
+
+            if (path.len == 0) {
+                return prefix;
+            }
+
+            // prefix = /admin/
+            // path = /users/
+            // result ==> /admin/users/  NOT   /admin//users/
+            if (prefix[prefix.len - 1] == '/' and path[0] == '/') {
+                prefix = prefix[0 .. prefix.len - 1];
+            }
+
+            const joined = try self._aa.alloc(u8, prefix.len + path.len);
+            @memcpy(joined[0..prefix.len], prefix);
+            @memcpy(joined[prefix.len..], path);
+            return joined;
+        }
     };
 }
 
