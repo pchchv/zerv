@@ -198,6 +198,27 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             };
             try addRoute(DispatchableAction, self._aa, &self._head, path, da);
         }
+
+        pub fn patch(self: *Self, path: []const u8, action: Action) void {
+            self.patchC(path, action, .{});
+        }
+
+        pub fn tryPatch(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryPatchC(path, action, .{});
+        }
+
+        pub fn patchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryPatchC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryPatchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            const da = DispatchableAction{
+                .action = action,
+                .handler = config.handler orelse self._default_handler,
+                .dispatcher = config.dispatcher orelse self._default_dispatcher,
+            };
+            try addRoute(DispatchableAction, self._aa, &self._patch, path, da);
+        }
     };
 }
 
