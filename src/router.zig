@@ -392,6 +392,22 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryPatchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryPatchC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn head(self: *Self, path: []const u8, action: Action) void {
+            self.headC(path, action, self._config);
+        }
+
+        pub fn headC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.headC(self.createPath(path), action, config);
+        }
+
+        pub fn tryHead(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryHeadC(path, action, self._config);
+        }
+
+        pub fn tryHeadC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryHeadC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
