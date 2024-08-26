@@ -282,6 +282,29 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             };
             try addRoute(DispatchableAction, self._aa, &self._options, path, da);
         }
+
+        pub fn all(self: *Self, path: []const u8, action: Action) void {
+            self.allC(path, action, .{});
+        }
+
+        pub fn tryAll(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryAllC(path, action, .{});
+        }
+
+        pub fn allC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self.tryAllC(path, action, config) catch @panic("failed to create route");
+        }
+
+        pub fn tryAllC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            try self.tryGetC(path, action, config);
+            try self.tryPutC(path, action, config);
+            try self.tryPostC(path, action, config);
+            try self.tryHeadC(path, action, config);
+            try self.tryPatchC(path, action, config);
+            try self.tryTraceC(path, action, config);
+            try self.tryDeleteC(path, action, config);
+            try self.tryOptionsC(path, action, config);
+        }
     };
 }
 
