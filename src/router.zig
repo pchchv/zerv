@@ -319,6 +319,15 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         _config: Config(Handler, Action),
 
         const Self = @This();
+
+        fn init(router: *Router(Handler, Action), prefix: []const u8, config: Config(Handler, Action)) Self {
+            return .{
+                ._prefix = prefix,
+                ._router = router,
+                ._config = config,
+                ._aa = router._arena.allocator(),
+            };
+        }
     };
 }
 
