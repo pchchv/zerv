@@ -304,6 +304,10 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
             try self.tryDeleteC(path, action, config);
             try self.tryOptionsC(path, action, config);
         }
+
+        pub fn group(self: *Self, prefix: []const u8, config: Config(Handler, Action)) Group(Handler, Action) {
+            return Group(Handler, Action).init(self, prefix, config);
+        }
     };
 }
 
