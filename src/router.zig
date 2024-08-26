@@ -456,6 +456,22 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
         pub fn tryOptionsC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
             return self._router.tryOptionsC(self.tryCreatePath(path), action, config);
         }
+
+        pub fn all(self: *Self, path: []const u8, action: Action) void {
+            self.allC(path, action, self._config);
+        }
+
+        pub fn allC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
+            self._router.allC(self.createPath(path), action, config);
+        }
+
+        pub fn tryAll(self: *Self, path: []const u8, action: Action) !void {
+            return self.tryAllC(path, action, self._config);
+        }
+
+        pub fn tryAllC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
+            return self._router.tryAllC(self.tryCreatePath(path), action, config);
+        }
     };
 }
 
