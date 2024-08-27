@@ -9,12 +9,11 @@ pub const response = @import("response.zig");
 pub const key_value = @import("key_value.zig");
 
 pub const Url = url.Url;
+const asUint = url.asUint;
 pub const Request = request.Request;
 pub const Response = response.Response;
 
-
-const asUint = url.asUint;
-const force_blocking: bool = if (@hasDecl(build, "httpz_blocking")) build.httpz_blocking else false;
+const force_blocking: bool = if (@hasDecl(build, "zerv_blocking")) build.zerv_blocking else false;
 
 pub const Protocol = enum {
     HTTP10,
