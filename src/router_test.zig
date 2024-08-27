@@ -1,12 +1,10 @@
 const t = @import("test.zig");
-const r = @import("router.zig");
 const zerv = @import("zerv.zig");
 const Request = @import("request.zig");
 const Response = @import("response.zig");
 
 const Params = @import("params.zig").Params;
-
-const Router = r.Router;
+const Router = @import("router.zig").Router;
 
 test "route: root" {
     var params = try Params.init(t.allocator, 5);
