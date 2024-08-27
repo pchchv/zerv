@@ -38,6 +38,43 @@ test "route: root" {
     }
 }
 
+test "route: static" {
+    var params = try Params.init(t.allocator, 5);
+    defer params.deinit(t.allocator);
+
+    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
+    defer router.deinit(t.allocator);
+    router.get("hello/world", testRoute1);
+    router.get("/over/9000/", testRoute2);
+
+    {
+        const urls = .{ "hello/world", "/hello/world", "hello/world/", "/hello/world/" };
+        // all trailing/leading slash combinations
+        try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, urls[0], &params).?.action);
+        try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, urls[1], &params).?.action);
+        try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, urls[2], &params).?.action);
+    }
+
+    {
+        const urls = .{ "over/9000", "/over/9000", "over/9000/", "/over/9000/" };
+        // all trailing/leading slash combinations
+        inline for (urls) |url| {
+            try t.expectEqual(&testRoute2, router.route(zerv.Method.GET, url, &params).?.action);
+
+            // different method
+            try t.expectEqual(null, router.route(zerv.Method.PUT, url, &params));
+        }
+    }
+
+    {
+        // random not found
+        const urls = .{ "over/9000!", "over/ 9000" };
+        inline for (urls) |url| {
+            try t.expectEqual(null, router.route(zerv.Method.GET, url, &params));
+        }
+    }
+}
+
 fn testDispatcher1(_: zerv.Action(void), _: *Request, _: *Response) anyerror!void {}
 fn testRoute1(_: *Request, _: *Response) anyerror!void {}
 fn testRoute2(_: *Request, _: *Response) anyerror!void {}
