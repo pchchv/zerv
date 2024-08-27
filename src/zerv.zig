@@ -3,6 +3,7 @@ const build = @import("build");
 const builtin = @import("builtin");
 
 const url = @import("url.zig");
+const Metrics = @import("metrics.zig");
 
 pub const request = @import("request.zig");
 pub const response = @import("response.zig");
@@ -131,4 +132,8 @@ pub fn blockingMode() bool {
         .linux, .macos, .ios, .tvos, .watchos, .freebsd, .netbsd, .dragonfly, .openbsd => false,
         else => true,
     };
+}
+
+pub fn writeMetrics(writer: anytype) !void {
+    return Metrics.write(writer);
 }
