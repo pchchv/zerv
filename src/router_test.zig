@@ -142,6 +142,51 @@ test "route: params" {
     }
 }
 
+test "route: glob" {
+    var params = try Params.init(t.allocator, 5);
+    defer params.deinit(t.allocator);
+
+    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
+    defer router.deinit(t.allocator);
+    router.get("/*", testRoute1);
+    router.get("/users/*", testRoute2);
+    router.get("/users/*/test", testRoute3);
+    router.get("/users/other/test", testRoute4);
+
+    {
+        // root glob
+        const urls = .{ "/anything", "/this/could/be/anything", "/" };
+        inline for (urls) |url| {
+            try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, url, &params).?.action);
+            try t.expectEqual(0, params.len);
+        }
+    }
+
+    {
+        // nest glob
+        const urls = .{ "/users/", "/users", "/users/hello", "/users/could/be/anything" };
+        inline for (urls) |url| {
+            try t.expectEqual(&testRoute2, router.route(zerv.Method.GET, url, &params).?.action);
+            try t.expectEqual(0, params.len);
+        }
+    }
+
+    {
+        // nest glob specific
+        const urls = .{ "/users/hello/test", "/users/x/test" };
+        inline for (urls) |url| {
+            try t.expectEqual(&testRoute3, router.route(zerv.Method.GET, url, &params).?.action);
+            try t.expectEqual(0, params.len);
+        }
+    }
+
+    {
+        // nest glob specific
+        try t.expectEqual(&testRoute4, router.route(zerv.Method.GET, "/users/other/test", &params).?.action);
+        try t.expectEqual(0, params.len);
+    }
+}
+
 fn testDispatcher1(_: zerv.Action(void), _: *Request, _: *Response) anyerror!void {}
 fn testRoute1(_: *Request, _: *Response) anyerror!void {}
 fn testRoute2(_: *Request, _: *Response) anyerror!void {}
