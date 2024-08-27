@@ -75,6 +75,73 @@ test "route: static" {
     }
 }
 
+test "route: params" {
+    var params = try Params.init(t.allocator, 5);
+    defer params.deinit(t.allocator);
+
+    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
+    defer router.deinit(t.allocator);
+    router.get("/:p1", testRoute1);
+    router.get("/users/:p2", testRoute2);
+    router.get("/users/:p2/fav", testRoute3);
+    router.get("/users/:p2/like", testRoute4);
+    router.get("/users/:p2/fav/:p3", testRoute5);
+    router.get("/users/:p2/like/:p3", testRoute6);
+
+    {
+        // root param
+        try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, "info", &params).?.action);
+        try t.expectEqual(1, params.len);
+        try t.expectString("info", params.get("p1").?);
+    }
+
+    {
+        // nested param
+        params.reset();
+        try t.expectEqual(&testRoute2, router.route(zerv.Method.GET, "/users/33", &params).?.action);
+        try t.expectEqual(1, params.len);
+        try t.expectString("33", params.get("p2").?);
+    }
+
+    {
+        // nested param with statix suffix
+        params.reset();
+        try t.expectEqual(&testRoute3, router.route(zerv.Method.GET, "/users/9/fav", &params).?.action);
+        try t.expectEqual(1, params.len);
+        try t.expectString("9", params.get("p2").?);
+
+        params.reset();
+        try t.expectEqual(&testRoute4, router.route(zerv.Method.GET, "/users/9/like", &params).?.action);
+        try t.expectEqual(1, params.len);
+        try t.expectString("9", params.get("p2").?);
+    }
+
+    {
+        // nested params
+        params.reset();
+        try t.expectEqual(&testRoute5, router.route(zerv.Method.GET, "/users/u1/fav/blue", &params).?.action);
+        try t.expectEqual(2, params.len);
+        try t.expectString("u1", params.get("p2").?);
+        try t.expectString("blue", params.get("p3").?);
+
+        params.reset();
+        try t.expectEqual(&testRoute6, router.route(zerv.Method.GET, "/users/u3/like/tea", &params).?.action);
+        try t.expectEqual(2, params.len);
+        try t.expectString("u3", params.get("p2").?);
+        try t.expectString("tea", params.get("p3").?);
+    }
+
+    {
+        // not_found
+        params.reset();
+        try t.expectEqual(null, router.route(zerv.Method.GET, "/users/u1/other", &params));
+        try t.expectEqual(0, params.len);
+
+        try t.expectEqual(null, router.route(zerv.Method.GET, "/users/u1/favss/blue", &params));
+        try t.expectEqual(0, params.len);
+    }
+}
+
 fn testDispatcher1(_: zerv.Action(void), _: *Request, _: *Response) anyerror!void {}
 fn testRoute1(_: *Request, _: *Response) anyerror!void {}
 fn testRoute2(_: *Request, _: *Response) anyerror!void {}
