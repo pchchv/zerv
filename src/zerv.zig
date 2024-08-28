@@ -16,6 +16,7 @@ pub const key_value = @import("key_value.zig");
 pub const Config = @import("config.zig").Config;
 
 pub const Url = url.Url;
+const HTTPConn = worker.HTTPConn;
 pub const Router = routing.Router;
 pub const Request = request.Request;
 pub const Response = response.Response;
@@ -24,6 +25,7 @@ const net = std.net;
 const posix = std.posix;
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
+const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 
 const asUint = url.asUint;
 
@@ -458,6 +460,51 @@ pub fn Server(comptime H: type) type {
                 }
                 posix.close(s);
             }
+        }
+
+        // Always called from the threadpool thread.
+        // For a nonblocking thread, notifyingHandler was the main threadpool entry, and it called this.
+        // For a blocking thread, the threadpool was directed to the worker's handleConnection, which eventually called this.
+        // thread_buf is a thread-specific buffer of configurable size that can be used as fit.
+        // This is by far the most efficient memory using because it is allocated at server start and reused on each request
+        // (which is safe because, blocking or non-blocking, once a request reaches this point, processing is blocked from the server's perspective).
+        // The thread_buf is used as part of the FallBackAllocator with conn arena ONLY for request.
+        // thread_buf is not used for the response because the response data must survive the execution of this function
+        // (and therefore, in nonblocking mode, survive a single execution of this thread pool).
+        pub fn handleRequest(self: *Self, conn: *HTTPConn, thread_buf: []u8) void {
+            const aa = conn.arena.allocator();
+
+            var fba = FixedBufferAllocator.init(thread_buf);
+            var fb = FallbackAllocator{
+                .fba = &fba,
+                .fallback = aa,
+                .fixed = fba.allocator(),
+            };
+
+            const allocator = fb.allocator();
+            var req = Request.init(allocator, conn);
+            var res = Response.init(allocator, conn);
+
+            conn.handover = if (conn.request_count < self._max_request_per_connection and req.canKeepAlive()) .keepalive else .close;
+
+            if (comptime std.meta.hasFn(Handler, "handle")) {
+                self.handler.handle(&req, &res);
+            } else {
+                const dispatchable_action = self._router.route(req.method, req.url.path, &req.params);
+                self.dispatch(dispatchable_action, &req, &res) catch |err| {
+                    if (comptime std.meta.hasFn(Handler, "uncaughtError")) {
+                        self.handler.uncaughtError(&req, &res, err);
+                    } else {
+                        res.status = 500;
+                        res.body = "Internal Server Error";
+                        std.log.warn("zerv: unhandled exception for request: {s}\nErr: {}", .{ req.url.raw, err });
+                    }
+                };
+            }
+
+            res.write() catch {
+                conn.handover = .close;
+            };
         }
     };
 }
