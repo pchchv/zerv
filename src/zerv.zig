@@ -239,5 +239,9 @@ pub fn Middleware(comptime H: type) type {
         pub fn deinit(self: Self) void {
             self.deinitFn(self.ptr);
         }
+
+        pub fn execute(self: Self, req: *Request, res: *Response, executor: *Server(H).Executor) !void {
+            return self.executeFn(self.ptr, req, res, executor);
+        }
     };
 }
