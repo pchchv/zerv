@@ -257,6 +257,21 @@ pub fn Server(comptime H: type) type {
             };
         }
 
+        pub fn deinit(self: *Self) void {
+            self._thread_pool.stop();
+            self._websocket_state.deinit();
+
+            var node = self._middlewares.first;
+            while (node) |n| {
+                n.data.deinit();
+                node = n.next;
+            }
+
+            const arena: *std.heap.ArenaAllocator = @ptrCast(@alignCast(self.arena.ptr));
+            arena.deinit();
+            self.allocator.destroy(arena);
+        }
+
         fn defaultDispatcher(action: ActionArg, req: *Request, res: *Response) !void {
             return action(req, res);
         }
