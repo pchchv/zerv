@@ -151,4 +151,10 @@ pub fn Action(comptime ActionContext: type) type {
 }
 
 pub fn Server(comptime H: type) type {
+    const Handler = switch (@typeInfo(H)) {
+        .Struct => H,
+        .Pointer => |ptr| ptr.child,
+        .Void => void,
+        else => @compileError("Server handler must be a struct, got: " ++ @tagName(@typeInfo(H))),
+    };
 }
