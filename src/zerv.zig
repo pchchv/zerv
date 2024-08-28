@@ -161,6 +161,17 @@ const FallbackAllocator = struct {
     fallback: Allocator,
     fba: *FixedBufferAllocator,
 
+    pub fn allocator(self: *FallbackAllocator) Allocator {
+        return .{
+            .ptr = self,
+            .vtable = &.{
+                .alloc = alloc,
+                .resize = resize,
+                .free = free,
+            },
+        };
+    }
+
     fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ra: usize) ?[*]u8 {
         const self: *FallbackAllocator = @ptrCast(@alignCast(ctx));
         return self.fixed.rawAlloc(len, ptr_align, ra) orelse self.fallback.rawAlloc(len, ptr_align, ra);
