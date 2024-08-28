@@ -19,6 +19,8 @@ pub const Url = url.Url;
 pub const Router = routing.Router;
 pub const Request = request.Request;
 pub const Response = response.Response;
+
+const net = std.net;
 const posix = std.posix;
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
@@ -281,6 +283,112 @@ pub fn Server(comptime H: type) type {
                 return handler.dispatch(action, req, res);
             }
             return action(handler, req, res);
+        }
+
+        pub fn listen(self: *Self) !void {
+            // incase "stop" is waiting
+            defer self._cond.signal();
+            self._mut.lock();
+
+            var no_delay = true;
+            const config = self.config;
+            const address = blk: {
+                if (config.unix_path) |unix_path| {
+                    if (comptime std.net.has_unix_sockets == false) {
+                        return error.UnixPathNotSupported;
+                    }
+                    no_delay = false;
+                    std.fs.deleteFileAbsolute(unix_path) catch {};
+                    break :blk try net.Address.initUnix(unix_path);
+                } else {
+                    const listen_port = config.port orelse 5882;
+                    const listen_address = config.address orelse "127.0.0.1";
+                    break :blk try net.Address.parseIp(listen_address, listen_port);
+                }
+            };
+
+            const socket = blk: {
+                var sock_flags: u32 = posix.SOCK.STREAM | posix.SOCK.CLOEXEC;
+                if (blockingMode() == false) sock_flags |= posix.SOCK.NONBLOCK;
+
+                const proto = if (address.any.family == posix.AF.UNIX) @as(u32, 0) else posix.IPPROTO.TCP;
+                break :blk try posix.socket(address.any.family, sock_flags, proto);
+            };
+
+            if (no_delay) {
+                try posix.setsockopt(socket, posix.IPPROTO.TCP, 1, &std.mem.toBytes(@as(c_int, 1)));
+            }
+
+            if (@hasDecl(posix.SO, "REUSEPORT_LB")) {
+                try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.REUSEPORT_LB, &std.mem.toBytes(@as(c_int, 1)));
+            } else if (@hasDecl(posix.SO, "REUSEPORT")) {
+                try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.REUSEPORT, &std.mem.toBytes(@as(c_int, 1)));
+            } else {
+                try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.REUSEADDR, &std.mem.toBytes(@as(c_int, 1)));
+            }
+
+            {
+                const socklen = address.getOsSockLen();
+                try posix.bind(socket, &address.any, socklen);
+                try posix.listen(socket, 1024); // kernel backlog
+            }
+
+            const allocator = self.allocator;
+
+            if (comptime blockingMode()) {
+                errdefer posix.close(socket);
+                var w = try worker.Blocking(*Self, WebsocketHandler).init(allocator, self, &config);
+                defer w.deinit();
+
+                const thrd = try Thread.spawn(.{}, worker.Blocking(*Self, WebsocketHandler).listen, .{ &w, socket });
+
+                // incase listenInNewThread was used and is waiting for us to start
+                self._cond.signal();
+
+                // we shutdown our blocking worker by closing the listening socket
+                self._signals[0] = socket;
+                self._mut.unlock();
+                thrd.join();
+            } else {
+                defer posix.close(socket);
+                const Worker = worker.NonBlocking(*Self, WebsocketHandler);
+                var signals = self._signals;
+                const worker_count = signals.len;
+                const workers = try self.arena.alloc(Worker, worker_count);
+                const threads = try self.arena.alloc(Thread, worker_count);
+
+                var started: usize = 0;
+                errdefer for (0..started) |i| {
+                    // on success, these will be closed by a call to stop();
+                    posix.close(signals[i]);
+                };
+
+                defer {
+                    for (0..started) |i| {
+                        workers[i].deinit();
+                    }
+                }
+
+                for (0..workers.len) |i| {
+                    const pipe = try posix.pipe2(.{ .NONBLOCK = true });
+                    signals[i] = pipe[1];
+                    errdefer posix.close(pipe[1]);
+
+                    workers[i] = try Worker.init(allocator, pipe, self, &config);
+                    errdefer workers[i].deinit();
+
+                    threads[i] = try Thread.spawn(.{}, Worker.run, .{ &workers[i], socket });
+                    started += 1;
+                }
+
+                // incase listenInNewThread was used and is waiting for us to start
+                self._cond.signal();
+                self._mut.unlock();
+
+                for (threads) |thrd| {
+                    thrd.join();
+                }
+            }
         }
     };
 }
