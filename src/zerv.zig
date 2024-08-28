@@ -160,6 +160,21 @@ const FallbackAllocator = struct {
     fixed: Allocator,
     fallback: Allocator,
     fba: *FixedBufferAllocator,
+
+    fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ra: usize) ?[*]u8 {
+        const self: *FallbackAllocator = @ptrCast(@alignCast(ctx));
+        return self.fixed.rawAlloc(len, ptr_align, ra) orelse self.fallback.rawAlloc(len, ptr_align, ra);
+    }
+
+    fn resize(ctx: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ra: usize) bool {
+        const self: *FallbackAllocator = @ptrCast(@alignCast(ctx));
+        if (self.fba.ownsPtr(buf.ptr)) {
+            if (self.fixed.rawResize(buf, buf_align, new_len, ra)) {
+                return true;
+            }
+        }
+        return self.fallback.rawResize(buf, buf_align, new_len, ra);
+    }
 };
 
 pub fn blockingMode() bool {
