@@ -137,3 +137,15 @@ pub fn blockingMode() bool {
 pub fn writeMetrics(writer: anytype) !void {
     return Metrics.write(writer);
 }
+
+/// When Server(handler: type) is initialized with a non-void handler,
+/// the ActionContext will either be defined by the handler,
+/// or will be the handler itself.
+/// So for this type,
+/// “ActionContext” can either be the handler or the ActionContext from the server.
+pub fn Action(comptime ActionContext: type) type {
+    if (ActionContext == void) {
+        return *const fn (*Request, *Response) anyerror!void;
+    }
+    return *const fn (ActionContext, *Request, *Response) anyerror!void;
+}
