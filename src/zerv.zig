@@ -390,6 +390,31 @@ pub fn Server(comptime H: type) type {
                 }
             }
         }
+
+        pub fn listenInNewThread(self: *Self) !std.Thread {
+            self._mut.lock();
+            defer self._mut.unlock();
+            const thrd = try std.Thread.spawn(.{}, listen, .{self});
+
+            // do not return until listen() signals that the server is up
+            self._cond.wait(&self._mut);
+
+            return thrd;
+        }
+
+        pub fn stop(self: *Self) void {
+            self._mut.lock();
+            defer self._mut.unlock();
+            for (self._signals) |s| {
+                if (blockingMode()) {
+                    // necessary to unblock accept on linux
+                    // (which might not be that necessary since, on Linux,
+                    // NonBlocking should be used)
+                    posix.shutdown(s, .recv) catch {};
+                }
+                posix.close(s);
+            }
+        }
     };
 }
 
