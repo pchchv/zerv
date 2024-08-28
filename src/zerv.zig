@@ -4,17 +4,28 @@ const builtin = @import("builtin");
 
 const url = @import("url.zig");
 const Metrics = @import("metrics.zig");
+const worker = @import("worker.zig");
 
+pub const websocket = @import("websocket");
+
+pub const routing = @import("router.zig");
 pub const request = @import("request.zig");
 pub const response = @import("response.zig");
 pub const key_value = @import("key_value.zig");
 
+pub const Config = @import("config.zig").Config;
+
 pub const Url = url.Url;
+pub const Router = routing.Router;
 pub const Request = request.Request;
 pub const Response = response.Response;
+const posix = std.posix;
+const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
 const asUint = url.asUint;
+
+const ThreadPool = @import("thread_pool.zig").ThreadPool;
 
 const force_blocking: bool = if (@hasDecl(build, "zerv_blocking")) build.zerv_blocking else false;
 
@@ -172,4 +183,23 @@ pub fn Server(comptime H: type) type {
 
     const ActionArg = if (comptime std.meta.hasFn(Handler, "dispatch")) @typeInfo(@TypeOf(Handler.dispatch)).Fn.params[1].type.? else Action(H);
     const WebsocketHandler = if (Handler != void and comptime @hasDecl(Handler, "WebsocketHandler")) Handler.WebsocketHandler else DummyWebsocketHandler;
+
+    return struct {
+        const TP = if (blockingMode()) ThreadPool(worker.Blocking(*Self, WebsocketHandler).handleConnection) else ThreadPool(worker.NonBlocking(*Self, WebsocketHandler).processData);
+
+        handler: H,
+        config: Config,
+        arena: Allocator,
+        allocator: Allocator,
+        _router: Router(H, ActionArg),
+        _mut: Thread.Mutex,
+        _cond: Thread.Condition,
+        _thread_pool: *TP,
+        _signals: []posix.fd_t,
+        _max_request_per_connection: u64,
+        _websocket_state: websocket.server.WorkerState,
+        _middlewares: std.SinglyLinkedList(Middleware(H)),
+
+        const Self = @This();
+    };
 }
