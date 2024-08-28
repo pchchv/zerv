@@ -175,6 +175,13 @@ const FallbackAllocator = struct {
         }
         return self.fallback.rawResize(buf, buf_align, new_len, ra);
     }
+
+    fn free(ctx: *anyopaque, buf: []u8, buf_align: u8, ra: usize) void {
+        _ = ctx;
+        _ = buf;
+        _ = buf_align;
+        _ = ra;
+    }
 };
 
 pub fn blockingMode() bool {
