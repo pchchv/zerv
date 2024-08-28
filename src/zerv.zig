@@ -12,6 +12,7 @@ pub const key_value = @import("key_value.zig");
 pub const Url = url.Url;
 pub const Request = request.Request;
 pub const Response = response.Response;
+const Allocator = std.mem.Allocator;
 
 const asUint = url.asUint;
 
@@ -122,6 +123,17 @@ pub const ContentType = enum {
     pub fn forFile(file_name: []const u8) ContentType {
         return forExtension(std.fs.path.extension(file_name));
     }
+};
+
+// If WebsocketHandler is not specified,
+// give it a dummy handler just to make the code compile.
+pub const DummyWebsocketHandler = struct {
+    pub fn clientMessage(_: DummyWebsocketHandler, _: []const u8) !void {}
+};
+
+pub const MiddlewareConfig = struct {
+    arena: Allocator,
+    allocator: Allocator,
 };
 
 pub fn blockingMode() bool {
