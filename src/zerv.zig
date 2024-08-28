@@ -169,4 +169,7 @@ pub fn Server(comptime H: type) type {
         .Void => void,
         else => @compileError("Server handler must be a struct, got: " ++ @tagName(@typeInfo(H))),
     };
+
+    const ActionArg = if (comptime std.meta.hasFn(Handler, "dispatch")) @typeInfo(@TypeOf(Handler.dispatch)).Fn.params[1].type.? else Action(H);
+    const WebsocketHandler = if (Handler != void and comptime @hasDecl(Handler, "WebsocketHandler")) Handler.WebsocketHandler else DummyWebsocketHandler;
 }
