@@ -201,6 +201,17 @@ pub fn Server(comptime H: type) type {
         _middlewares: std.SinglyLinkedList(Middleware(H)),
 
         const Self = @This();
+
+        fn defaultDispatcher(action: ActionArg, req: *Request, res: *Response) !void {
+            return action(req, res);
+        }
+
+        fn defaultDispatcherWithHandler(handler: H, action: ActionArg, req: *Request, res: *Response) !void {
+            if (comptime std.meta.hasFn(Handler, "dispatch")) {
+                return handler.dispatch(action, req, res);
+            }
+            return action(handler, req, res);
+        }
     };
 }
 
