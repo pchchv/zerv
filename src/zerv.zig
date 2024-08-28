@@ -203,3 +203,13 @@ pub fn Server(comptime H: type) type {
         const Self = @This();
     };
 }
+
+pub fn Middleware(comptime H: type) type {
+    return struct {
+        ptr: *anyopaque,
+        deinitFn: *const fn (ptr: *anyopaque) void,
+        executeFn: *const fn (ptr: *anyopaque, req: *Request, res: *Response, executor: *Server(H).Executor) anyerror!void,
+
+        const Self = @This();
+    };
+}
