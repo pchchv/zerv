@@ -29,6 +29,8 @@ const ThreadPool = @import("thread_pool.zig").ThreadPool;
 
 const force_blocking: bool = if (@hasDecl(build, "zerv_blocking")) build.zerv_blocking else false;
 
+const MAX_REQUEST_COUNT = 4_294_967_295;
+
 pub const Protocol = enum {
     HTTP10,
     HTTP11,
@@ -201,6 +203,59 @@ pub fn Server(comptime H: type) type {
         _middlewares: std.SinglyLinkedList(Middleware(H)),
 
         const Self = @This();
+
+        pub fn init(allocator: Allocator, config: Config, handler: H) !Self {
+            // Most things can do dynamic allocation and should be able to free memory when it runs out.
+            // Only used for things that are created at startup and will not be dynamically grow/shrink.
+            const arena = try allocator.create(std.heap.ArenaAllocator);
+            errdefer allocator.destroy(arena);
+            arena.* = std.heap.ArenaAllocator.init(allocator);
+            errdefer arena.deinit();
+
+            const thread_pool = try TP.init(arena.allocator(), .{
+                .count = config.threadPoolCount(),
+                .backlog = config.thread_pool.backlog orelse 500,
+                .buffer_size = config.thread_pool.buffer_size orelse 32_768,
+            });
+
+            const signals = try arena.allocator().alloc(posix.fd_t, config.workerCount());
+
+            const default_dispatcher = if (comptime Handler == void) defaultDispatcher else defaultDispatcherWithHandler;
+
+            // do not pass arena.allocator to WorkerState,
+            // it needs to be able to allocate and free at will.
+            var websocket_state = try websocket.server.WorkerState.init(allocator, .{
+                .max_message_size = config.websocket.max_message_size,
+                .buffers = .{
+                    .small_size = config.websocket.small_buffer_size,
+                    .small_pool = config.websocket.small_buffer_pool,
+                    .large_size = config.websocket.large_buffer_size,
+                    .large_pool = config.websocket.large_buffer_pool,
+                },
+                // disable handshake memory allocation since zerv is handling the handshake request directly
+                .handshake = .{
+                    .count = 0,
+                    .max_size = 0,
+                    .max_headers = 0,
+                },
+            });
+            errdefer websocket_state.deinit();
+
+            return .{
+                .config = config,
+                .handler = handler,
+                .allocator = allocator,
+                .arena = arena.allocator(),
+                ._mut = .{},
+                ._cond = .{},
+                ._middlewares = .{},
+                ._signals = signals,
+                ._thread_pool = thread_pool,
+                ._websocket_state = websocket_state,
+                ._router = try Router(H, ActionArg).init(arena.allocator(), default_dispatcher, handler),
+                ._max_request_per_connection = config.timeout.request_count orelse MAX_REQUEST_COUNT,
+            };
+        }
 
         fn defaultDispatcher(action: ActionArg, req: *Request, res: *Response) !void {
             return action(req, res);
