@@ -149,3 +149,6 @@ pub fn Action(comptime ActionContext: type) type {
     }
     return *const fn (ActionContext, *Request, *Response) anyerror!void;
 }
+
+pub fn Server(comptime H: type) type {
+}
