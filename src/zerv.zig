@@ -211,5 +211,33 @@ pub fn Middleware(comptime H: type) type {
         executeFn: *const fn (ptr: *anyopaque, req: *Request, res: *Response, executor: *Server(H).Executor) anyerror!void,
 
         const Self = @This();
+
+        pub fn init(ptr: anytype) Self {
+            const T = @TypeOf(ptr);
+            const ptr_info = @typeInfo(T);
+            const gen = struct {
+                pub fn deinit(pointer: *anyopaque) void {
+                    const self: T = @ptrCast(@alignCast(pointer));
+                    if (std.meta.hasMethod(T, "deinit")) {
+                        return ptr_info.Pointer.child.deinit(self);
+                    }
+                }
+
+                pub fn execute(pointer: *anyopaque, req: *Request, res: *Response, executor: *Server(H).Executor) anyerror!void {
+                    const self: T = @ptrCast(@alignCast(pointer));
+                    return ptr_info.Pointer.child.execute(self, req, res, executor);
+                }
+            };
+
+            return .{
+                .ptr = ptr,
+                .deinitFn = gen.deinit,
+                .executeFn = gen.execute,
+            };
+        }
+
+        pub fn deinit(self: Self) void {
+            self.deinitFn(self.ptr);
+        }
     };
 }
