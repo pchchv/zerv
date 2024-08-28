@@ -506,6 +506,33 @@ pub fn Server(comptime H: type) type {
                 conn.handover = .close;
             };
         }
+
+        pub fn router(self: *Self) *Router(H, ActionArg) {
+            return &self._router;
+        }
+
+        pub fn middleware(self: *Self, comptime M: type, config: M.Config) !Middleware(H) {
+            const arena = self.arena;
+            const node = try arena.create(std.SinglyLinkedList(Middleware(H)).Node);
+            errdefer arena.destroy(node);
+
+            const m = try arena.create(M);
+            errdefer arena.destroy(m);
+            switch (comptime @typeInfo(@TypeOf(M.init)).Fn.params.len) {
+                1 => m.* = try M.init(config),
+                2 => m.* = try M.init(config, MiddlewareConfig{
+                    .arena = arena,
+                    .allocator = self.allocator,
+                }),
+                else => @compileError(@typeName(M) ++ ".init should accept 1 or 2 parameters"),
+            }
+
+            const iface = Middleware(H).init(m);
+            node.data = iface;
+            self._middlewares.prepend(node);
+
+            return iface;
+        }
     };
 }
 
