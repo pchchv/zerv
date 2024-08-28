@@ -151,6 +151,17 @@ pub const MiddlewareConfig = struct {
     allocator: Allocator,
 };
 
+// std.heap.StackFallbackAllocator is very specific.
+// It's really _stack_ as it requires a comptime size.
+// Also, it uses non-public calls from the FixedBufferAllocator.
+// There should be a more generic FallbackAllocator that just takes 2 allocators...
+// which is what this is.
+const FallbackAllocator = struct {
+    fixed: Allocator,
+    fallback: Allocator,
+    fba: *FixedBufferAllocator,
+};
+
 pub fn blockingMode() bool {
     if (force_blocking) {
         return true;
