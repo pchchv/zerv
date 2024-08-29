@@ -537,6 +537,51 @@ pub fn Server(comptime H: type) type {
         pub fn dispatcher(self: *Self, d: Dispatcher(H, ActionArg)) void {
             (&self._router).dispatcher(d);
         }
+
+        fn dispatch(self: *const Self, dispatchable_action: ?DispatchableAction(H, ActionArg), req: *Request, res: *Response) !void {
+            const da = dispatchable_action orelse {
+                if (comptime std.meta.hasFn(Handler, "notFound")) {
+                    return self.handler.notFound(req, res);
+                }
+                res.status = 404;
+                res.body = "Not Found";
+                return;
+            };
+
+            var executor = Executor{
+                .da = da,
+                .index = 0,
+                .req = req,
+                .res = res,
+                .middlewares = da.middlewares,
+            };
+            return executor.next();
+        }
+
+        pub const Executor = struct {
+            index: usize,
+            req: *Request,
+            res: *Response,
+            // pull this out of da since will access it a lot
+            middlewares: []const Middleware(H),
+            da: DispatchableAction(H, ActionArg),
+
+            pub fn next(self: *Executor) !void {
+                const index = self.index;
+                const middlewares = self.middlewares;
+
+                if (index == middlewares.len) {
+                    const da = self.da;
+                    if (comptime H == void) {
+                        return da.dispatcher(da.action, self.req, self.res);
+                    }
+                    return da.dispatcher(da.handler, da.action, self.req, self.res);
+                }
+
+                self.index = index + 1;
+                return middlewares[index].execute(self.req, self.res, self);
+            }
+        };
     };
 }
 
