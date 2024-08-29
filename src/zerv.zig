@@ -24,6 +24,7 @@ pub const Response = response.Response;
 const net = std.net;
 const posix = std.posix;
 const Thread = std.Thread;
+const log = std.log.scoped(.zerv);
 const Allocator = std.mem.Allocator;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 
@@ -641,4 +642,42 @@ pub fn Middleware(comptime H: type) type {
             return self.executeFn(self.ptr, req, res, executor);
         }
     };
+}
+
+pub fn upgradeWebsocket(comptime H: type, req: *Request, res: *Response, ctx: anytype) !bool {
+    const upgrade = req.header("upgrade") orelse return false;
+    if (std.ascii.eqlIgnoreCase(upgrade, "websocket") == false) {
+        return false;
+    }
+
+    const version = req.header("sec-websocket-version") orelse return false;
+    if (std.ascii.eqlIgnoreCase(version, "13") == false) {
+        return false;
+    }
+
+    // send multiple values for this header
+    const connection = req.header("connection") orelse return false;
+    if (std.ascii.indexOfIgnoreCase(connection, "upgrade") == null) {
+        return false;
+    }
+
+    const key = req.header("sec-websocket-key") orelse return false;
+
+    const http_conn = res.conn;
+
+    const ws_worker: *websocket.server.Worker(H) = @ptrCast(@alignCast(http_conn.ws_worker));
+
+    var hc = try ws_worker.createConn(http_conn.stream.handle, http_conn.address, worker.timestamp());
+    errdefer ws_worker.cleanupConn(hc);
+
+    hc.handler = try H.init(&hc.conn, ctx);
+    try http_conn.stream.writeAll(&websocket.Handshake.createReply(key));
+    if (comptime std.meta.hasFn(H, "afterInit")) {
+        const params = @typeInfo(@TypeOf(H.afterInit)).Fn.params;
+        try if (comptime params.len == 1) hc.handler.?.afterInit() else hc.handler.?.afterInit(ctx);
+    }
+
+    res.written = true;
+    http_conn.handover = .{ .websocket = hc };
+    return true;
 }
