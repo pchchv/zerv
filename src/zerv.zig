@@ -547,6 +547,15 @@ pub fn Dispatcher(comptime Handler: type, comptime ActionArg: type) type {
     return *const fn (Handler, ActionArg, *Request, *Response) anyerror!void;
 }
 
+pub fn DispatchableAction(comptime Handler: type, comptime ActionArg: type) type {
+    return struct {
+        handler: Handler,
+        action: ActionArg,
+        dispatcher: Dispatcher(Handler, ActionArg),
+        middlewares: []const Middleware(Handler) = &.{},
+    };
+}
+
 pub fn Middleware(comptime H: type) type {
     return struct {
         ptr: *anyopaque,
