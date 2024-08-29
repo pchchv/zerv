@@ -536,6 +536,13 @@ pub fn Server(comptime H: type) type {
     };
 }
 
+pub fn Dispatcher(comptime Handler: type, comptime ActionArg: type) type {
+    if (Handler == void) {
+        return *const fn (Action(void), *Request, *Response) anyerror!void;
+    }
+    return *const fn (Handler, ActionArg, *Request, *Response) anyerror!void;
+}
+
 pub fn Middleware(comptime H: type) type {
     return struct {
         ptr: *anyopaque,
