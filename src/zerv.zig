@@ -3,8 +3,8 @@ const build = @import("build");
 const builtin = @import("builtin");
 
 const url = @import("url.zig");
-const Metrics = @import("metrics.zig");
 const worker = @import("worker.zig");
+const Metrics = @import("metrics.zig");
 
 pub const websocket = @import("websocket");
 
