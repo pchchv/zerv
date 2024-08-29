@@ -533,6 +533,10 @@ pub fn Server(comptime H: type) type {
 
             return iface;
         }
+
+        pub fn dispatcher(self: *Self, d: Dispatcher(H, ActionArg)) void {
+            (&self._router).dispatcher(d);
+        }
     };
 }
 
