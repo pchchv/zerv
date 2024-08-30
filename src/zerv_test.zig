@@ -235,4 +235,27 @@ const TestHandlerHandle = struct {
 };
 
 const TestWebsocketHandler = struct {
+    pub const WebsocketHandler = struct {
+        ctx: u32,
+        conn: *websocket.Conn,
+
+        pub fn init(conn: *websocket.Conn, ctx: u32) !WebsocketHandler {
+            return .{
+                .ctx = ctx,
+                .conn = conn,
+            };
+        }
+
+        pub fn afterInit(self: *WebsocketHandler, ctx: u32) !void {
+            try t.expectEqual(self.ctx, ctx);
+        }
+
+        pub fn clientMessage(self: *WebsocketHandler, data: []const u8) !void {
+            if (std.mem.eql(u8, data, "close")) {
+                self.conn.close(.{}) catch {};
+                return;
+            }
+            try self.conn.write(data);
+        }
+    };
 };
