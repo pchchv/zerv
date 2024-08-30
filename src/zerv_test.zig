@@ -258,4 +258,11 @@ const TestWebsocketHandler = struct {
             try self.conn.write(data);
         }
     };
+
+    pub fn upgrade(_: TestWebsocketHandler, req: *Request, res: *Response) !void {
+        if (try zerv.upgradeWebsocket(WebsocketHandler, req, res, 9001) == false) {
+            res.status = 500;
+            res.body = "invalid websocket";
+        }
+    }
 };
