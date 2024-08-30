@@ -223,3 +223,10 @@ const TestHandlerDispatchContext = struct {
         return res.json(.{ .other = a.other }, .{});
     }
 };
+
+const TestHandlerHandle = struct {
+    pub fn handle(_: TestHandlerHandle, req: *Request, res: *Response) void {
+        const query = req.query() catch unreachable;
+        std.fmt.format(res.writer(), "hello {s}", .{query.get("name") orelse "world"}) catch unreachable;
+    }
+};
