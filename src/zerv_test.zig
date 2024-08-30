@@ -1,5 +1,8 @@
 const std = @import("std");
 
+pub const websocket = @import("websocket");
+
+const t = @import("test.zig");
 pub const zerv = @import("zerv.zog");
 
 const Action = zerv.Action;
@@ -229,4 +232,7 @@ const TestHandlerHandle = struct {
         const query = req.query() catch unreachable;
         std.fmt.format(res.writer(), "hello {s}", .{query.get("name") orelse "world"}) catch unreachable;
     }
+};
+
+const TestWebsocketHandler = struct {
 };
