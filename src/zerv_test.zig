@@ -13,6 +13,7 @@ const Response = zerv.Response;
 const Middleware = zerv.Middleware;
 const MiddlewareConfig = zerv.MiddlewareConfig;
 
+const posix = std.posix;
 const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
@@ -289,6 +290,19 @@ const TestWebsocketHandler = struct {
         }
     }
 };
+
+fn testStream(port: u16) std.net.Stream {
+    const timeout = std.mem.toBytes(posix.timeval{
+        .sec = 0,
+        .usec = 20_000,
+    });
+
+    const address = std.net.Address.parseIp("127.0.0.1", port) catch unreachable;
+    const stream = std.net.tcpConnectToAddress(address) catch unreachable;
+    posix.setsockopt(stream.handle, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &timeout) catch unreachable;
+    posix.setsockopt(stream.handle, posix.SOL.SOCKET, posix.SO.SNDTIMEO, &timeout) catch unreachable;
+    return stream;
+}
 
 test "tests:beforeAll" {
     // this will leak since the server will run until the process exits.
