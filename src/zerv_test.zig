@@ -4,18 +4,41 @@ pub const websocket = @import("websocket");
 
 const t = @import("test.zig");
 pub const zerv = @import("zerv.zog");
+pub const middleware = @import("middleware/middleware.zig");
 
+const Server = zerv.Server;
 const Action = zerv.Action;
 const Request = zerv.Request;
 const Response = zerv.Response;
+const Middleware = zerv.Middleware;
 const MiddlewareConfig = zerv.MiddlewareConfig;
 
+const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 
 const TestUser = struct {
     id: []const u8,
     power: usize,
 };
+
+var global_test_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+
+var test_handler_dispatch = TestHandlerDispatch{ .state = 10 };
+var test_handler_disaptch_context = TestHandlerDispatchContext{ .state = 20 };
+var test_handler_default_dispatch1 = TestHandlerDefaultDispatch{ .state = 3 };
+var test_handler_default_dispatch2 = TestHandlerDefaultDispatch{ .state = 99 };
+var test_handler_default_dispatch3 = TestHandlerDefaultDispatch{ .state = 20 };
+
+var reuse_server: Server(void) = undefined;
+var default_server: Server(void) = undefined;
+var handle_server: Server(TestHandlerHandle) = undefined;
+var websocket_server: Server(TestWebsocketHandler) = undefined;
+var dispatch_server: Server(*TestHandlerDispatch) = undefined;
+var dispatch_default_server: Server(*TestHandlerDefaultDispatch) = undefined;
+var dispatch_action_context_server: Server(*TestHandlerDispatchContext) = undefined;
+
+var test_server_threads: [7]Thread = undefined;
+
 
 const TestMiddleware = struct {
     const Config = struct {
@@ -266,3 +289,97 @@ const TestWebsocketHandler = struct {
         }
     }
 };
+
+test "tests:beforeAll" {
+    // this will leak since the server will run until the process exits.
+    // If using testing allocator, it'll report the leak.
+    const ga = global_test_allocator.allocator();
+
+    {
+        default_server = try Server(void).init(ga, .{ .port = 5992 }, {});
+
+        // only need to do this because we're using listenInNewThread instead of blocking here.
+        // So the array to hold the middleware needs to outlive this function.
+        var cors = try default_server.arena.alloc(Middleware(void), 1);
+        cors[0] = try default_server.middleware(middleware.Cors, .{
+            .max_age = "300",
+            .methods = "GET,POST",
+            .origin = "zerv.local",
+            .headers = "content-type",
+        });
+
+        var middlewares = try default_server.arena.alloc(Middleware(void), 2);
+        middlewares[0] = try default_server.middleware(TestMiddleware, .{ .id = 100 });
+        middlewares[1] = cors[0];
+
+        var router = default_server.router();
+        router.get("/fail", TestDummyHandler.fail, .{});
+        router.get("/test/json", TestDummyHandler.jsonRes, .{});
+        router.get("/test/query", TestDummyHandler.reqQuery, .{});
+        router.get("/test/stream", TestDummyHandler.eventStream, .{});
+        router.get("/test/chunked", TestDummyHandler.chunked, .{});
+        router.all("/test/cors", TestDummyHandler.jsonRes, .{ .middlewares = cors });
+        router.all("/test/middlewares", TestDummyHandler.middlewares, .{ .middlewares = middlewares });
+        router.all("/test/dispatcher", TestDummyHandler.dispatchedAction, .{ .dispatcher = TestDummyHandler.routeSpecificDispacthcer });
+        test_server_threads[0] = try default_server.listenInNewThread();
+    }
+
+    {
+        dispatch_default_server = try Server(*TestHandlerDefaultDispatch).init(ga, .{ .port = 5993 }, &test_handler_default_dispatch1);
+        var router = dispatch_default_server.router();
+        router.get("/", TestHandlerDefaultDispatch.echo, .{});
+        router.get("/write/*", TestHandlerDefaultDispatch.echoWrite, .{});
+        router.get("/fail", TestHandlerDefaultDispatch.fail, .{});
+        router.post("/login", TestHandlerDefaultDispatch.echo, .{});
+        router.get("/test/body/cl", TestHandlerDefaultDispatch.clBody, .{});
+        router.get("/test/headers", TestHandlerDefaultDispatch.headers, .{});
+        router.all("/api/:version/users/:UserId", TestHandlerDefaultDispatch.params, .{});
+
+        var admin_routes = router.group("/admin/", .{ .dispatcher = TestHandlerDefaultDispatch.dispatch2, .handler = &test_handler_default_dispatch2 });
+        admin_routes.get("/users", TestHandlerDefaultDispatch.echo);
+        admin_routes.put("/users/:id", TestHandlerDefaultDispatch.echo);
+
+        var debug_routes = router.group("/debug", .{ .dispatcher = TestHandlerDefaultDispatch.dispatch3, .handler = &test_handler_default_dispatch3 });
+        debug_routes.head("/ping", TestHandlerDefaultDispatch.echo);
+        debug_routes.options("/stats", TestHandlerDefaultDispatch.echo);
+
+        test_server_threads[1] = try dispatch_default_server.listenInNewThread();
+    }
+
+    {
+        dispatch_server = try Server(*TestHandlerDispatch).init(ga, .{ .port = 5994 }, &test_handler_dispatch);
+        var router = dispatch_server.router();
+        router.get("/", TestHandlerDispatch.root, .{});
+        test_server_threads[2] = try dispatch_server.listenInNewThread();
+    }
+
+    {
+        dispatch_action_context_server = try Server(*TestHandlerDispatchContext).init(ga, .{ .port = 5995 }, &test_handler_disaptch_context);
+        var router = dispatch_action_context_server.router();
+        router.get("/", TestHandlerDispatchContext.root, .{});
+        test_server_threads[3] = try dispatch_action_context_server.listenInNewThread();
+    }
+
+    {
+        // with only 1 worker, and a min/max conn of 1,
+        // each request should hit our reset path.
+        reuse_server = try Server(void).init(ga, .{ .port = 5996, .workers = .{ .count = 1, .min_conn = 1, .max_conn = 1 } }, {});
+        var router = reuse_server.router();
+        router.get("/test/writer", TestDummyHandler.reuseWriter, .{});
+        test_server_threads[4] = try reuse_server.listenInNewThread();
+    }
+
+    {
+        handle_server = try Server(TestHandlerHandle).init(ga, .{ .port = 5997 }, TestHandlerHandle{});
+        test_server_threads[5] = try handle_server.listenInNewThread();
+    }
+
+    {
+        websocket_server = try Server(TestWebsocketHandler).init(ga, .{ .port = 5998 }, TestWebsocketHandler{});
+        var router = websocket_server.router();
+        router.get("/ws", TestWebsocketHandler.upgrade, .{});
+        test_server_threads[6] = try websocket_server.listenInNewThread();
+    }
+
+    std.testing.refAllDecls(@This());
+}
