@@ -124,3 +124,69 @@ const TestDummyHandler = struct {
         return res.json(.{ .data = data }, .{});
     }
 };
+
+const TestHandlerDefaultDispatch = struct {
+    state: usize,
+
+    fn dispatch2(h: *TestHandlerDefaultDispatch, action: Action(*TestHandlerDefaultDispatch), req: *Request, res: *Response) !void {
+        res.header("dispatcher", "test-dispatcher-2");
+        return action(h, req, res);
+    }
+
+    fn dispatch3(h: *TestHandlerDefaultDispatch, action: Action(*TestHandlerDefaultDispatch), req: *Request, res: *Response) !void {
+        res.header("dispatcher", "test-dispatcher-3");
+        return action(h, req, res);
+    }
+
+    fn echo(h: *TestHandlerDefaultDispatch, req: *Request, res: *Response) !void {
+        return res.json(.{
+            .state = h.state,
+            .method = @tagName(req.method),
+            .path = req.url.path,
+        }, .{});
+    }
+
+    fn echoWrite(h: *TestHandlerDefaultDispatch, req: *Request, res: *Response) !void {
+        var arr = std.ArrayList(u8).init(res.arena);
+        try std.json.stringify(.{
+            .state = h.state,
+            .method = @tagName(req.method),
+            .path = req.url.path,
+        }, .{}, arr.writer());
+
+        res.body = arr.items;
+        return res.write();
+    }
+
+    fn params(_: *TestHandlerDefaultDispatch, req: *Request, res: *Response) !void {
+        const args = .{ req.param("version").?, req.param("UserId").? };
+        res.body = try std.fmt.allocPrint(req.arena, "version={s},user={s}", args);
+    }
+
+    fn headers(h: *TestHandlerDefaultDispatch, req: *Request, res: *Response) !void {
+        res.header("state", try std.fmt.allocPrint(res.arena, "{d}", .{h.state}));
+        res.header("Echo", req.header("header-name").?);
+        res.header("other", "test-value");
+    }
+
+    fn clBody(_: *TestHandlerDefaultDispatch, req: *Request, res: *Response) !void {
+        res.header("Echo-Body", req.body().?);
+    }
+
+    fn fail(_: *TestHandlerDefaultDispatch, _: *Request, _: *Response) !void {
+        return error.TestUnhandledError;
+    }
+
+    pub fn notFound(h: *TestHandlerDefaultDispatch, _: *Request, res: *Response) !void {
+        res.status = 404;
+        res.header("state", try std.fmt.allocPrint(res.arena, "{d}", .{h.state}));
+        res.body = "where lah?";
+    }
+
+    pub fn uncaughtError(h: *TestHandlerDefaultDispatch, _: *Request, res: *Response, err: anyerror) void {
+        res.status = 500;
+        res.header("state", std.fmt.allocPrint(res.arena, "{d}", .{h.state}) catch unreachable);
+        res.header("err", @errorName(err));
+        res.body = "#/why/arent/tags/hierarchical";
+    }
+};
