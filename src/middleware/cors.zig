@@ -14,3 +14,12 @@ methods: ?[]const u8 = null,
 max_age: ?[]const u8 = null,
 
 const Cors = @This();
+
+pub fn init(config: Config) !Cors {
+    return .{
+        .origin = config.origin,
+        .headers = config.headers,
+        .methods = config.methods,
+        .max_age = config.max_age,
+    };
+}
