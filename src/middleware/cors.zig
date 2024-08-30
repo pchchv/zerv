@@ -23,3 +23,30 @@ pub fn init(config: Config) !Cors {
         .max_age = config.max_age,
     };
 }
+
+pub fn execute(self: *const Cors, req: *zerv.Request, res: *zerv.Response, executor: anytype) !void {
+    res.header("Access-Control-Allow-Origin", self.origin);
+    if (req.method != .OPTIONS) {
+        return executor.next();
+    }
+
+    const mode = req.header("sec-fetch-mode") orelse {
+        return executor.next();
+    };
+
+    if (std.mem.eql(u8, mode, "cors") == false) {
+        return executor.next();
+    }
+
+    if (self.headers) |headers| {
+        res.header("Access-Control-Allow-Headers", headers);
+    }
+    if (self.methods) |methods| {
+        res.header("Access-Control-Allow-Methods", methods);
+    }
+    if (self.max_age) |max_age| {
+        res.header("Access-Control-Max-Age", max_age);
+    }
+
+    res.status = 204;
+}
