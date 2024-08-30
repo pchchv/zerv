@@ -28,4 +28,14 @@ const TestMiddleware = struct {
     pub fn deinit(self: *const TestMiddleware) void {
         self.allocator.free(self.v2);
     }
+
+    fn value1(req: *const Request) []const u8 {
+        const v: [*]u8 = @ptrCast(req.middlewares.get("text_middleware_1").?);
+        return v[0..7];
+    }
+
+    fn value2(req: *const Request) []const u8 {
+        const v: [*]u8 = @ptrCast(req.middlewares.get("text_middleware_2").?);
+        return v[0..7];
+    }
 };
