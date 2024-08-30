@@ -304,6 +304,31 @@ fn testStream(port: u16) std.net.Stream {
     return stream;
 }
 
+fn testReadAll(stream: std.net.Stream, buf: []u8) []u8 {
+    var pos: usize = 0;
+    var blocked = false;
+    while (true) {
+        std.debug.assert(pos < buf.len);
+        const n = stream.read(buf[pos..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                if (blocked) return buf[0..pos];
+                blocked = true;
+                std.time.sleep(std.time.ns_per_ms);
+                continue;
+            },
+            else => @panic(@errorName(err)),
+        };
+
+        if (n == 0) {
+            return buf[0..pos];
+        }
+
+        pos += n;
+        blocked = false;
+    }
+    unreachable;
+}
+
 test "tests:beforeAll" {
     // this will leak since the server will run until the process exits.
     // If using testing allocator, it'll report the leak.
