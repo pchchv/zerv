@@ -190,3 +190,17 @@ const TestHandlerDefaultDispatch = struct {
         res.body = "#/why/arent/tags/hierarchical";
     }
 };
+
+const TestHandlerDispatch = struct {
+    state: usize,
+
+    pub fn dispatch(self: *TestHandlerDispatch, action: Action(*TestHandlerDispatch), req: *Request, res: *Response) !void {
+        res.header("dstate", try std.fmt.allocPrint(res.arena, "{d}", .{self.state}));
+        res.header("dispatch", "TestHandlerDispatch");
+        return action(self, req, res);
+    }
+
+    fn root(h: *TestHandlerDispatch, _: *Request, res: *Response) !void {
+        return res.json(.{ .state = h.state }, .{});
+    }
+};
