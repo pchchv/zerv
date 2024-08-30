@@ -38,4 +38,10 @@ const TestMiddleware = struct {
         const v: [*]u8 = @ptrCast(req.middlewares.get("text_middleware_2").?);
         return v[0..7];
     }
+
+    fn execute(self: *const TestMiddleware, req: *Request, _: *Response, executor: anytype) !void {
+        try req.middlewares.put("text_middleware_1", (try req.arena.dupe(u8, self.v1)).ptr);
+        try req.middlewares.put("text_middleware_2", (try req.arena.dupe(u8, self.v2)).ptr);
+        return executor.next();
+    }
 };
