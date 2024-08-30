@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const zerv = @import("zerv.zog");
 
+const Action = zerv.Action;
 const Request = zerv.Request;
 const Response = zerv.Response;
 const MiddlewareConfig = zerv.MiddlewareConfig;
@@ -48,5 +49,78 @@ const TestMiddleware = struct {
         try req.middlewares.put("text_middleware_1", (try req.arena.dupe(u8, self.v1)).ptr);
         try req.middlewares.put("text_middleware_2", (try req.arena.dupe(u8, self.v2)).ptr);
         return executor.next();
+    }
+};
+
+// TestDummyHandler simulates having a void handler,
+// but keeps the test actions organized within this namespace.
+const TestDummyHandler = struct {
+    fn fail(_: *Request, _: *Response) !void {
+        return error.Failure;
+    }
+
+    fn reqQuery(req: *Request, res: *Response) !void {
+        res.status = 200;
+        const query = try req.query();
+        res.body = query.get("fav").?;
+    }
+
+    fn chunked(_: *Request, res: *Response) !void {
+        res.header("Over", "9000!");
+        res.status = 200;
+        try res.chunk("Chunk 1");
+        try res.chunk("and another chunk");
+    }
+    fn jsonRes(_: *Request, res: *Response) !void {
+        res.status = 201;
+        try res.json(.{ .over = 9000, .teg = "soup" }, .{});
+    }
+
+    fn eventStream(_: *Request, res: *Response) !void {
+        res.status = 818;
+        try res.startEventStream(StreamContext{ .data = "hello" }, StreamContext.handle);
+    }
+
+    const StreamContext = struct {
+        data: []const u8,
+
+        fn handle(self: StreamContext, stream: std.net.Stream) void {
+            stream.writeAll(self.data) catch unreachable;
+            stream.writeAll("a message") catch unreachable;
+        }
+    };
+
+    fn routeSpecificDispacthcer(action: Action(void), req: *Request, res: *Response) !void {
+        res.header("dispatcher", "test-dispatcher-1");
+        return action(req, res);
+    }
+
+    fn dispatchedAction(_: *Request, res: *Response) !void {
+        return res.directWriter().writeAll("action");
+    }
+
+    fn middlewares(req: *Request, res: *Response) !void {
+        return res.json(.{
+            .v1 = TestMiddleware.value1(req),
+            .v2 = TestMiddleware.value2(req),
+        }, .{});
+    }
+
+    // called by the re-use server,
+    // but put here because,
+    // like the default server this is a handler-less server
+    fn reuseWriter(req: *Request, res: *Response) !void {
+        res.status = 200;
+        const query = try req.query();
+        const count = try std.fmt.parseInt(u16, query.get("count").?, 10);
+
+        var data = try res.arena.alloc(TestUser, count);
+        for (0..count) |i| {
+            data[i] = .{
+                .id = try std.fmt.allocPrint(res.arena, "id-{d}", .{i}),
+                .power = i,
+            };
+        }
+        return res.json(.{ .data = data }, .{});
     }
 };
