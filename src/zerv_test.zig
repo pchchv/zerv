@@ -383,3 +383,27 @@ test "tests:beforeAll" {
 
     std.testing.refAllDecls(@This());
 }
+
+test "tests:afterAll" {
+    default_server.stop();
+    dispatch_default_server.stop();
+    dispatch_server.stop();
+    dispatch_action_context_server.stop();
+    reuse_server.stop();
+    handle_server.stop();
+    websocket_server.stop();
+
+    for (test_server_threads) |thread| {
+        thread.join();
+    }
+
+    default_server.deinit();
+    dispatch_default_server.deinit();
+    dispatch_server.deinit();
+    dispatch_action_context_server.deinit();
+    reuse_server.deinit();
+    handle_server.deinit();
+    websocket_server.deinit();
+
+    try t.expectEqual(false, global_test_allocator.detectLeaks());
+}
