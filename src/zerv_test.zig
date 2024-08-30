@@ -8,6 +8,11 @@ const MiddlewareConfig = zerv.MiddlewareConfig;
 
 const Allocator = std.mem.Allocator;
 
+const TestUser = struct {
+    id: []const u8,
+    power: usize,
+};
+
 const TestMiddleware = struct {
     const Config = struct {
         id: i32,
