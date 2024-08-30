@@ -204,3 +204,22 @@ const TestHandlerDispatch = struct {
         return res.json(.{ .state = h.state }, .{});
     }
 };
+
+const TestHandlerDispatchContext = struct {
+    state: usize,
+
+    const ActionContext = struct {
+        other: usize,
+    };
+
+    pub fn dispatch(self: *TestHandlerDispatchContext, action: Action(*ActionContext), req: *Request, res: *Response) !void {
+        res.header("dstate", try std.fmt.allocPrint(res.arena, "{d}", .{self.state}));
+        res.header("dispatch", "TestHandlerDispatchContext");
+        var action_context = ActionContext{ .other = self.state + 10 };
+        return action(&action_context, req, res);
+    }
+
+    pub fn root(a: *const ActionContext, _: *Request, res: *Response) !void {
+        return res.json(.{ .other = a.other }, .{});
+    }
+};
