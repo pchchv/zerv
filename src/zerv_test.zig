@@ -643,3 +643,12 @@ test "zerv: content-length body" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\nEcho-Body: abcz\r\nContent-Length: 0\r\n\r\n", testReadAll(stream, &buf));
 }
+
+test "zerv: route-specific dispatcher" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("HEAD /test/dispatcher HTTP/1.1\r\n\r\n");
+
+    var buf: [200]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\ndispatcher: test-dispatcher-1\r\nContent-Length: 6\r\n\r\naction", testReadAll(stream, &buf));
+}
