@@ -786,3 +786,28 @@ test "zerv: keepalive with explicit write" {
     try stream.writeAll("GET /write/123 HTTP/1.1\r\n\r\n");
     try t.expectString("HTTP/1.1 200 \r\nContent-Length: 46\r\n\r\n{\"state\":3,\"method\":\"GET\",\"path\":\"/write/123\"}", testReadAll(stream, &buf));
 }
+
+test "zerv: event stream" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /test/stream HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var res = testReadParsed(stream);
+    defer res.deinit();
+
+    try t.expectEqual(818, res.status);
+    try t.expectEqual(true, res.headers.get("Content-Length") == null);
+    try t.expectString("text/event-stream", res.headers.get("Content-Type").?);
+    try t.expectString("no-cache", res.headers.get("Cache-Control").?);
+    try t.expectString("keep-alive", res.headers.get("Connection").?);
+    try t.expectString("helloa message", res.body);
+}
+
+test "zerv: custom handle" {
+    const stream = testStream(5997);
+    defer stream.close();
+    try stream.writeAll("GET /whatever?name=teg HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 9\r\n\r\nhello teg", testReadAll(stream, &buf));
+}
