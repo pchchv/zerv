@@ -730,3 +730,35 @@ test "zerv: json response" {
     var buf: [200]u8 = undefined;
     try t.expectString("HTTP/1.1 201 \r\nContent-Type: application/json\r\nContent-Length: 26\r\n\r\n{\"over\":9000,\"teg\":\"soup\"}", testReadAll(stream, &buf));
 }
+
+test "zerv: query" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /test/query?fav=keemun%20te%61%21 HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [200]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 11\r\n\r\nkeemun tea!", testReadAll(stream, &buf));
+}
+
+test "zerv: chunked" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /test/chunked HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [1000]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nOver: 9000!\r\nTransfer-Encoding: chunked\r\n\r\n7\r\nChunk 1\r\n11\r\nand another chunk\r\n0\r\n\r\n", testReadAll(stream, &buf));
+}
+
+test "zerv: middlewares" {
+    const stream = testStream(5992);
+    defer stream.close();
+
+    {
+        try stream.writeAll("GET /test/middlewares HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .v1 = "tm1-100", .v2 = "tm2-100" });
+        try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
+    }
+}
