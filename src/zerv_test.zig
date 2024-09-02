@@ -12,6 +12,7 @@ const Action = zerv.Action;
 const Request = zerv.Request;
 const Response = zerv.Response;
 const Middleware = zerv.Middleware;
+const ContentType = zerv.ContentType;
 const MiddlewareConfig = zerv.MiddlewareConfig;
 
 const posix = std.posix;
@@ -844,4 +845,25 @@ test "zerv: request in chunks" {
 
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\nContent-Length: 18\r\n\r\nversion=v2,user=11", testReadAll(stream, &buf));
+}
+
+test "ContentType: forX" {
+    inline for (@typeInfo(ContentType).@"enum".fields) |field| {
+        if (comptime std.mem.eql(u8, "BINARY", field.name)) continue;
+        if (comptime std.mem.eql(u8, "EVENTS", field.name)) continue;
+        try t.expectEqual(@field(ContentType, field.name), ContentType.forExtension(field.name));
+        try t.expectEqual(@field(ContentType, field.name), ContentType.forExtension("." ++ field.name));
+        try t.expectEqual(@field(ContentType, field.name), ContentType.forFile("some_file." ++ field.name));
+    }
+    // variations
+    try t.expectEqual(ContentType.HTML, ContentType.forExtension(".htm"));
+    try t.expectEqual(ContentType.JPG, ContentType.forExtension(".jpeg"));
+
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forExtension(".spice"));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forExtension(""));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forExtension(".x"));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile(""));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile("css"));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile("css"));
+    try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile("must.spice"));
 }
