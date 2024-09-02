@@ -536,30 +536,6 @@ pub fn Server(comptime H: type) type {
             return iface;
         }
 
-        pub fn dispatcher(self: *Self, d: Dispatcher(H, ActionArg)) void {
-            (&self._router).dispatcher(d);
-        }
-
-        fn dispatch(self: *const Self, dispatchable_action: ?DispatchableAction(H, ActionArg), req: *Request, res: *Response) !void {
-            const da = dispatchable_action orelse {
-                if (comptime std.meta.hasFn(Handler, "notFound")) {
-                    return self.handler.notFound(req, res);
-                }
-                res.status = 404;
-                res.body = "Not Found";
-                return;
-            };
-
-            var executor = Executor{
-                .da = da,
-                .index = 0,
-                .req = req,
-                .res = res,
-                .middlewares = da.middlewares,
-            };
-            return executor.next();
-        }
-
         pub const Executor = struct {
             index: usize,
             req: *Request,
