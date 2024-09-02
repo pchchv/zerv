@@ -16,10 +16,11 @@ pub const key_value = @import("key_value.zig");
 pub const Config = @import("config.zig").Config;
 
 pub const Url = url.Url;
-const HTTPConn = worker.HTTPConn;
 pub const Router = routing.Router;
 pub const Request = request.Request;
 pub const Response = response.Response;
+
+const HTTPConn = worker.HTTPConn;
 
 const net = std.net;
 const posix = std.posix;
