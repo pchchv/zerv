@@ -675,7 +675,7 @@ pub fn upgradeWebsocket(comptime H: type, req: *Request, res: *Response, ctx: an
     hc.handler = try H.init(&hc.conn, ctx);
     try http_conn.stream.writeAll(&websocket.Handshake.createReply(key));
     if (comptime std.meta.hasFn(H, "afterInit")) {
-        const params = @typeInfo(@TypeOf(H.afterInit)).Fn.params;
+        const params = @typeInfo(@TypeOf(H.afterInit)).@"fn".params;
         try if (comptime params.len == 1) hc.handler.?.afterInit() else hc.handler.?.afterInit(ctx);
     }
 
