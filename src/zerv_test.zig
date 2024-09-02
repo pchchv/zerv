@@ -652,3 +652,21 @@ test "zerv: route-specific dispatcher" {
     var buf: [200]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\ndispatcher: test-dispatcher-1\r\nContent-Length: 6\r\n\r\naction", testReadAll(stream, &buf));
 }
+
+test "zerv: custom dispatch without action context" {
+    const stream = testStream(5994);
+    defer stream.close();
+    try stream.writeAll("GET / HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [200]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Type: application/json\r\ndstate: 10\r\ndispatch: TestHandlerDispatch\r\nContent-Length: 12\r\n\r\n{\"state\":10}", testReadAll(stream, &buf));
+}
+
+test "zerv: custom dispatch with action context" {
+    const stream = testStream(5995);
+    defer stream.close();
+    try stream.writeAll("GET /?name=teg HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [200]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Type: application/json\r\ndstate: 20\r\ndispatch: TestHandlerDispatchContext\r\nContent-Length: 12\r\n\r\n{\"other\":30}", testReadAll(stream, &buf));
+}
