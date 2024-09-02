@@ -481,3 +481,21 @@ test "zerv: invalid header name" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 400 \r\nConnection: Close\r\nContent-Length: 15\r\n\r\nInvalid Request", testReadAll(stream, &buf));
 }
+
+test "zerv: invalid content length value (1)" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET / HTTP/1.1\r\nContent-Length: HaHA\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 400 \r\nConnection: Close\r\nContent-Length: 15\r\n\r\nInvalid Request", testReadAll(stream, &buf));
+}
+
+test "zerv: invalid content length value (2)" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET / HTTP/1.1\r\nContent-Length: 1.0\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 400 \r\nConnection: Close\r\nContent-Length: 15\r\n\r\nInvalid Request", testReadAll(stream, &buf));
+}
