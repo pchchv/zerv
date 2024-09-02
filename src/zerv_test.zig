@@ -811,3 +811,26 @@ test "zerv: custom handle" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\nContent-Length: 9\r\n\r\nhello teg", testReadAll(stream, &buf));
 }
+
+test "zerv: writer re-use" {
+    defer t.reset();
+
+    const stream = testStream(5996);
+    defer stream.close();
+
+    var expected: [10]TestUser = undefined;
+
+    var buf: [100]u8 = undefined;
+    for (0..10) |i| {
+        expected[i] = .{
+            .id = try std.fmt.allocPrint(t.arena.allocator(), "id-{d}", .{i}),
+            .power = i,
+        };
+        try stream.writeAll(try std.fmt.bufPrint(&buf, "GET /test/writer?count={d} HTTP/1.1\r\nContent-Length: 0\r\n\r\n", .{i + 1}));
+
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .data = expected[0 .. i + 1] });
+    }
+}
