@@ -526,3 +526,27 @@ test "zerv: no route with custom notFound handler" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 404 \r\nstate: 3\r\nContent-Length: 10\r\n\r\nwhere lah?", testReadAll(stream, &buf));
 }
+
+test "zerv: unhandled exception" {
+    std.testing.log_level = .err;
+    defer std.testing.log_level = .warn;
+
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /fail HTTP/1.1\r\n\r\n");
+
+    var buf: [150]u8 = undefined;
+    try t.expectString("HTTP/1.1 500 \r\nContent-Length: 21\r\n\r\nInternal Server Error", testReadAll(stream, &buf));
+}
+
+test "zerv: unhandled exception with custom error handler" {
+    std.testing.log_level = .err;
+    defer std.testing.log_level = .warn;
+
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /fail HTTP/1.1\r\n\r\n");
+
+    var buf: [150]u8 = undefined;
+    try t.expectString("HTTP/1.1 500 \r\nstate: 3\r\nerr: TestUnhandledError\r\nContent-Length: 29\r\n\r\n#/why/arent/tags/hierarchical", testReadAll(stream, &buf));
+}
