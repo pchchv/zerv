@@ -540,24 +540,35 @@ pub fn Server(comptime H: type) type {
             index: usize,
             req: *Request,
             res: *Response,
+            handler: H,
             // pull this out of da since will access it a lot
             middlewares: []const Middleware(H),
-            da: DispatchableAction(H, ActionArg),
+            dispatchable_action: ?DispatchableAction(H, ActionArg),
 
             pub fn next(self: *Executor) !void {
                 const index = self.index;
                 const middlewares = self.middlewares;
 
-                if (index == middlewares.len) {
-                    const da = self.da;
+                if (index < middlewares.len) {
+                    self.index = index + 1;
+                    return middlewares[index].execute(self.req, self.res, self);
+                }
+
+                // done executing our middlewares,
+                // now we either execute the dispatcher or not found.
+                if (self.dispatchable_action) |da| {
                     if (comptime H == void) {
                         return da.dispatcher(da.action, self.req, self.res);
                     }
                     return da.dispatcher(da.handler, da.action, self.req, self.res);
                 }
 
-                self.index = index + 1;
-                return middlewares[index].execute(self.req, self.res, self);
+                if (comptime std.meta.hasFn(Handler, "notFound")) {
+                    return self.handler.notFound(self.req, self.res);
+                }
+                self.res.status = 404;
+                self.res.body = "Not Found";
+                return;
             }
         };
     };
