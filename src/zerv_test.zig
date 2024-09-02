@@ -4,6 +4,7 @@ pub const websocket = @import("websocket");
 
 const t = @import("test.zig");
 pub const zerv = @import("zerv.zog");
+pub const testing = @import("testing.zig");
 pub const middleware = @import("middleware/middleware.zig");
 
 const Server = zerv.Server;
@@ -327,6 +328,12 @@ fn testReadAll(stream: std.net.Stream, buf: []u8) []u8 {
         blocked = false;
     }
     unreachable;
+}
+
+fn testReadParsed(stream: std.net.Stream) testing.Testing.Response {
+    var buf: [4096]u8 = undefined;
+    const data = testReadAll(stream, &buf);
+    return testing.parse(data) catch unreachable;
 }
 
 test "tests:beforeAll" {
