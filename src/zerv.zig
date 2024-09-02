@@ -509,7 +509,13 @@ pub fn Server(comptime H: type) type {
             };
         }
 
-        pub fn router(self: *Self) *Router(H, ActionArg) {
+        pub fn router(self: *Self, config: RouterConfig) *Router(H, ActionArg) {
+            // store this in self for no route is found
+            self._middlewares = config.middlewares;
+
+            // store this in router to append to add/append to created routes
+            self._router.middlewares = config.middlewares;
+
             return &self._router;
         }
 
