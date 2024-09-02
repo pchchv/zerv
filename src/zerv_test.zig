@@ -625,3 +625,12 @@ test "zerv: router groups" {
         try t.expectEqual(true, res.headers.get("dispatcher") == null);
     }
 }
+
+test "zerv: request and response headers" {
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /test/headers HTTP/1.1\r\nHeader-Name: Header-Value\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nstate: 3\r\nEcho: Header-Value\r\nother: test-value\r\nContent-Length: 0\r\n\r\n", testReadAll(stream, &buf));
+}
