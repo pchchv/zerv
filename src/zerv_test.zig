@@ -508,3 +508,21 @@ test "zerv: overflow content length" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 400 \r\nConnection: Close\r\nContent-Length: 15\r\n\r\nInvalid Request", testReadAll(stream, &buf));
 }
+
+test "zerv: no route" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET / HTTP/1.1\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 404 \r\nContent-Length: 9\r\n\r\nNot Found", testReadAll(stream, &buf));
+}
+
+test "zerv: no route with custom notFound handler" {
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /not_found HTTP/1.1\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 404 \r\nstate: 3\r\nContent-Length: 10\r\n\r\nwhere lah?", testReadAll(stream, &buf));
+}
