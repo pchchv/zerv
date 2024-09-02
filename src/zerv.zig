@@ -598,6 +598,7 @@ pub fn DispatchableAction(comptime Handler: type, comptime ActionArg: type) type
     return struct {
         handler: Handler,
         action: ActionArg,
+        data: ?*const anyopaque,
         dispatcher: Dispatcher(Handler, ActionArg),
         middlewares: []const Middleware(Handler) = &.{},
     };
