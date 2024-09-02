@@ -867,3 +867,13 @@ test "ContentType: forX" {
     try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile("css"));
     try t.expectEqual(ContentType.UNKNOWN, ContentType.forFile("must.spice"));
 }
+
+test "websocket: invalid request" {
+    const stream = testStream(5998);
+    defer stream.close();
+    try stream.writeAll("GET /ws HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var res = testReadParsed(stream);
+    defer res.deinit();
+    try t.expectString("invalid websocket", res.body);
+}
