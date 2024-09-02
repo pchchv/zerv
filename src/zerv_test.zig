@@ -337,6 +337,33 @@ fn testReadParsed(stream: std.net.Stream) testing.Testing.Response {
     return testing.parse(data) catch unreachable;
 }
 
+fn testReadHeader(stream: std.net.Stream) testing.Testing.Response {
+    var pos: usize = 0;
+    var blocked = false;
+    var buf: [1024]u8 = undefined;
+    while (true) {
+        std.debug.assert(pos < buf.len);
+        const n = stream.read(buf[pos..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                if (blocked) unreachable;
+                blocked = true;
+                std.time.sleep(std.time.ns_per_ms);
+                continue;
+            },
+            else => @panic(@errorName(err)),
+        };
+
+        if (n == 0) unreachable;
+
+        pos += n;
+        if (std.mem.endsWith(u8, buf[0..pos], "\r\n\r\n")) {
+            return testing.parse(buf[0..pos]) catch unreachable;
+        }
+        blocked = false;
+    }
+    unreachable;
+}
+
 test "tests:beforeAll" {
     // this will leak since the server will run until the process exits.
     // If using testing allocator, it'll report the leak.
