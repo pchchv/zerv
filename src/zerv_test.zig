@@ -446,3 +446,11 @@ test "tests:afterAll" {
 
     try t.expectEqual(false, global_test_allocator.detectLeaks());
 }
+
+test "zerv: quick shutdown" {
+    var server = try Server(void).init(t.allocator, .{ .port = 6992 }, {});
+    const thrd = try server.listenInNewThread();
+    server.stop();
+    thrd.join();
+    server.deinit();
+}
