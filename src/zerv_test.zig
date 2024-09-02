@@ -566,3 +566,62 @@ test "zerv: route params" {
     var buf: [100]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\nContent-Length: 20\r\n\r\nversion=v2,user=9001", testReadAll(stream, &buf));
 }
+
+test "zerv: router groups" {
+    const stream = testStream(5993);
+    defer stream.close();
+
+    {
+        try stream.writeAll("GET / HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 3, .method = "GET", .path = "/" });
+        try t.expectEqual(true, res.headers.get("dispatcher") == null);
+    }
+
+    {
+        try stream.writeAll("GET /admin/users HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 99, .method = "GET", .path = "/admin/users" });
+        try t.expectString("test-dispatcher-2", res.headers.get("dispatcher").?);
+    }
+
+    {
+        try stream.writeAll("PUT /admin/users/:id HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 99, .method = "PUT", .path = "/admin/users/:id" });
+        try t.expectString("test-dispatcher-2", res.headers.get("dispatcher").?);
+    }
+
+    {
+        try stream.writeAll("HEAD /debug/ping HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 20, .method = "HEAD", .path = "/debug/ping" });
+        try t.expectString("test-dispatcher-3", res.headers.get("dispatcher").?);
+    }
+
+    {
+        try stream.writeAll("OPTIONS /debug/stats HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 20, .method = "OPTIONS", .path = "/debug/stats" });
+        try t.expectString("test-dispatcher-3", res.headers.get("dispatcher").?);
+    }
+
+    {
+        try stream.writeAll("POST /login HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try res.expectJson(.{ .state = 3, .method = "POST", .path = "/login" });
+        try t.expectEqual(true, res.headers.get("dispatcher") == null);
+    }
+}
