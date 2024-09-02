@@ -42,7 +42,6 @@ var dispatch_action_context_server: Server(*TestHandlerDispatchContext) = undefi
 
 var test_server_threads: [7]Thread = undefined;
 
-
 const TestMiddleware = struct {
     const Config = struct {
         id: i32,
@@ -903,4 +902,53 @@ test "websocket: invalid request" {
     var res = testReadParsed(stream);
     defer res.deinit();
     try t.expectString("invalid websocket", res.body);
+}
+
+test "websocket: upgrade" {
+    const stream = testStream(5998);
+    defer stream.close();
+
+    try stream.writeAll("GET /ws HTTP/1.1\r\nContent-Length: 0\r\n");
+    try stream.writeAll("upgrade: WEBsocket\r\n");
+    try stream.writeAll("Sec-Websocket-verSIon: 13\r\n");
+    try stream.writeAll("ConnectioN: abc,upgrade,123\r\n");
+    try stream.writeAll("SEC-WEBSOCKET-KeY: a-secret-key\r\n\r\n");
+
+    var res = testReadHeader(stream);
+    defer res.deinit();
+
+    try t.expectEqual(101, res.status);
+    try t.expectString("websocket", res.headers.get("Upgrade").?);
+    try t.expectString("upgrade", res.headers.get("Connection").?);
+    try t.expectString("55eM2SNGu+68v5XXrr982mhPFkU=", res.headers.get("Sec-Websocket-Accept").?);
+
+    try stream.writeAll(&websocket.frameText("over 9000!"));
+    try stream.writeAll(&websocket.frameText("close"));
+
+    var pos: usize = 0;
+    var wait_count: usize = 0;
+    var buf: [100]u8 = undefined;
+    while (pos < 16) {
+        const n = stream.read(buf[pos..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                if (wait_count == 100) {
+                    break;
+                }
+                wait_count += 1;
+                std.time.sleep(std.time.ns_per_ms);
+                continue;
+            },
+            else => return err,
+        };
+        if (n == 0) {
+            break;
+        }
+        pos += n;
+    }
+
+    try t.expectEqual(16, pos);
+    try t.expectEqual(129, buf[0]);
+    try t.expectEqual(10, buf[1]);
+    try t.expectString("over 9000!", buf[2..12]);
+    try t.expectString(&.{ 136, 2, 3, 232 }, buf[12..16]);
 }
