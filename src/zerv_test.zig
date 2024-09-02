@@ -670,3 +670,54 @@ test "zerv: custom dispatch with action context" {
     var buf: [200]u8 = undefined;
     try t.expectString("HTTP/1.1 200 \r\nContent-Type: application/json\r\ndstate: 20\r\ndispatch: TestHandlerDispatchContext\r\nContent-Length: 12\r\n\r\n{\"other\":30}", testReadAll(stream, &buf));
 }
+
+test "zerv: CORS" {
+    const stream = testStream(5992);
+    defer stream.close();
+
+    {
+        try stream.writeAll("GET /echo HTTP/1.1\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+        try t.expectEqual(null, res.headers.get("Access-Control-Max-Age"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Methods"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Headers"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Origin"));
+    }
+
+    {
+        // cors endpoint but not cors options
+        try stream.writeAll("OPTIONS /test/cors HTTP/1.1\r\nSec-Fetch-Mode: navigate\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try t.expectEqual(null, res.headers.get("Access-Control-Max-Age"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Methods"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Headers"));
+        try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
+    }
+
+    {
+        // cors request
+        try stream.writeAll("OPTIONS /test/cors HTTP/1.1\r\nSec-Fetch-Mode: cors\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try t.expectString("300", res.headers.get("Access-Control-Max-Age").?);
+        try t.expectString("GET,POST", res.headers.get("Access-Control-Allow-Methods").?);
+        try t.expectString("content-type", res.headers.get("Access-Control-Allow-Headers").?);
+        try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
+    }
+
+    {
+        // cors request, non-options
+        try stream.writeAll("GET /test/cors HTTP/1.1\r\nSec-Fetch-Mode: cors\r\n\r\n");
+        var res = testReadParsed(stream);
+        defer res.deinit();
+
+        try t.expectEqual(null, res.headers.get("Access-Control-Max-Age"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Methods"));
+        try t.expectEqual(null, res.headers.get("Access-Control-Allow-Headers"));
+        try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
+    }
+}
