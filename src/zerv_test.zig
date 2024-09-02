@@ -721,3 +721,12 @@ test "zerv: CORS" {
         try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
     }
 }
+
+test "zerv: json response" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /test/json HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var buf: [200]u8 = undefined;
+    try t.expectString("HTTP/1.1 201 \r\nContent-Type: application/json\r\nContent-Length: 26\r\n\r\n{\"over\":9000,\"teg\":\"soup\"}", testReadAll(stream, &buf));
+}
