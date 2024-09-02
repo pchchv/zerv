@@ -619,13 +619,13 @@ pub fn Middleware(comptime H: type) type {
                 pub fn deinit(pointer: *anyopaque) void {
                     const self: T = @ptrCast(@alignCast(pointer));
                     if (std.meta.hasMethod(T, "deinit")) {
-                        return ptr_info.Pointer.child.deinit(self);
+                        return ptr_info.pointer.child.deinit(self);
                     }
                 }
 
                 pub fn execute(pointer: *anyopaque, req: *Request, res: *Response, executor: *Server(H).Executor) anyerror!void {
                     const self: T = @ptrCast(@alignCast(pointer));
-                    return ptr_info.Pointer.child.execute(self, req, res, executor);
+                    return ptr_info.pointer.child.execute(self, req, res, executor);
                 }
             };
 
