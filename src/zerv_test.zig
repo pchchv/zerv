@@ -762,3 +762,27 @@ test "zerv: middlewares" {
         try t.expectString("zerv.local", res.headers.get("Access-Control-Allow-Origin").?);
     }
 }
+
+test "zerv: keepalive" {
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /api/v2/users/9001 HTTP/1.1\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 20\r\n\r\nversion=v2,user=9001", testReadAll(stream, &buf));
+
+    try stream.writeAll("GET /api/v2/users/123 HTTP/1.1\r\n\r\n");
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 19\r\n\r\nversion=v2,user=123", testReadAll(stream, &buf));
+}
+
+test "zerv: keepalive with explicit write" {
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /write/9001 HTTP/1.1\r\n\r\n");
+
+    var buf: [1000]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 47\r\n\r\n{\"state\":3,\"method\":\"GET\",\"path\":\"/write/9001\"}", testReadAll(stream, &buf));
+
+    try stream.writeAll("GET /write/123 HTTP/1.1\r\n\r\n");
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 46\r\n\r\n{\"state\":3,\"method\":\"GET\",\"path\":\"/write/123\"}", testReadAll(stream, &buf));
+}
