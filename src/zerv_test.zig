@@ -834,3 +834,14 @@ test "zerv: writer re-use" {
         try res.expectJson(.{ .data = expected[0 .. i + 1] });
     }
 }
+
+test "zerv: request in chunks" {
+    const stream = testStream(5993);
+    defer stream.close();
+    try stream.writeAll("GET /api/v2/use");
+    std.time.sleep(std.time.ns_per_ms * 10);
+    try stream.writeAll("rs/11 HTTP/1.1\r\n\r\n");
+
+    var buf: [100]u8 = undefined;
+    try t.expectString("HTTP/1.1 200 \r\nContent-Length: 18\r\n\r\nversion=v2,user=11", testReadAll(stream, &buf));
+}
