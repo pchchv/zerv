@@ -83,6 +83,11 @@ pub const Request = struct {
         value: MultiFormKeyValue.Value,
     };
 
+    const ContentDispositionAttributes = struct {
+        name: []const u8,
+        filename: ?[]const u8 = null,
+    };
+
     pub fn init(arena: Allocator, conn: *HTTPConn) Request {
         const state = &conn.req_state;
         return .{
