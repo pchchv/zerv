@@ -132,4 +132,16 @@ pub const Request = struct {
             else => return null,
         }
     }
+
+    pub fn canKeepAlive(self: *const Request) bool {
+        return switch (self.protocol) {
+            zerv.Protocol.HTTP11 => {
+                if (self.headers.get("connection")) |conn| {
+                    return !std.mem.eql(u8, conn, "close");
+                }
+                return true;
+            },
+            zerv.Protocol.HTTP10 => return false, // TODO: support this in the cases where it can be
+        };
+    }
 };
