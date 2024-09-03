@@ -216,3 +216,22 @@ pub const Request = struct {
         return self.qs;
     }
 };
+
+inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
+    if (in.len > 1 and in[0] == ' ') {
+        const n = in[1];
+        if (n != ' ' and n != '\t') {
+            return .{ in[1..], 1 };
+        }
+    }
+
+    for (in, 0..) |b, i| {
+        if (b != ' ' and b != '\t') return .{ in[i..], i };
+    }
+    return .{ "", in.len };
+}
+
+inline fn trimLeadingSpace(in: []const u8) []const u8 {
+    const out, _ = trimLeadingSpaceCount(in);
+    return out;
+}
