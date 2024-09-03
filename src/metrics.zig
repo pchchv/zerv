@@ -30,17 +30,17 @@ const Metrics = struct {
 // This is an advanced usage of metrics.zig, largely done because we aren't
 // using any vectored metrics and thus can do everything at comptime.
 var metrics = Metrics{
-    .connections = m.Counter(usize).Impl.init("httpz_connections", .{}),
-    .requests = m.Counter(usize).Impl.init("httpz_requests", .{}),
-    .timeout_active = m.Counter(usize).Impl.init("httpz_timeout_active", .{}),
-    .timeout_keepalive = m.Counter(usize).Impl.init("httpz_timeout_keepalive", .{}),
-    .alloc_buffer_empty = m.Counter(usize).Impl.init("httpz_alloc_buffer_empty", .{}),
-    .alloc_buffer_large = m.Counter(usize).Impl.init("httpz_alloc_buffer_large", .{}),
-    .alloc_unescape = m.Counter(usize).Impl.init("httpz_alloc_unescape", .{}),
-    .internal_error = m.Counter(usize).Impl.init("httpz_internal_error", .{}),
-    .invalid_request = m.Counter(usize).Impl.init("httpz_invalid_request", .{}),
-    .header_too_big = m.Counter(usize).Impl.init("httpz_header_too_big", .{}),
-    .body_too_big = m.Counter(usize).Impl.init("httpz_body_too_big", .{}),
+    .connections = m.Counter(usize).Impl.init("zerv_connections", .{}),
+    .requests = m.Counter(usize).Impl.init("zerv_requests", .{}),
+    .timeout_active = m.Counter(usize).Impl.init("zerv_timeout_active", .{}),
+    .timeout_keepalive = m.Counter(usize).Impl.init("zerv_timeout_keepalive", .{}),
+    .alloc_buffer_empty = m.Counter(usize).Impl.init("zerv_alloc_buffer_empty", .{}),
+    .alloc_buffer_large = m.Counter(usize).Impl.init("zerv_alloc_buffer_large", .{}),
+    .alloc_unescape = m.Counter(usize).Impl.init("zerv_alloc_unescape", .{}),
+    .internal_error = m.Counter(usize).Impl.init("zerv_internal_error", .{}),
+    .invalid_request = m.Counter(usize).Impl.init("zerv_invalid_request", .{}),
+    .header_too_big = m.Counter(usize).Impl.init("zerv_header_too_big", .{}),
+    .body_too_big = m.Counter(usize).Impl.init("zerv_body_too_big", .{}),
 };
 
 pub fn write(writer: anytype) !void {
