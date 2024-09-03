@@ -174,6 +174,80 @@ pub const Request = struct {
         return self.parseMultiFormData();
     }
 
+    fn getContentDispotionAttributes(fields: []u8) !ContentDispositionAttributes {
+        var pos: usize = 0;
+        var name: ?[]const u8 = null;
+        var filename: ?[]const u8 = null;
+        while (pos < fields.len) {
+            {
+                const b = fields[pos];
+                if (b == ';' or b == ' ' or b == '\t') {
+                    pos += 1;
+                    continue;
+                }
+            }
+
+            const sep = std.mem.indexOfScalarPos(u8, fields, pos, '=') orelse return error.InvalidMultiPartEncoding;
+            const field_name = fields[pos..sep];
+
+            // skip the equal
+            const value_start = sep + 1;
+            if (value_start == fields.len) {
+                return error.InvalidMultiPartEncoding;
+            }
+
+            var value: []const u8 = undefined;
+            if (fields[value_start] != '"') {
+                const value_end = std.mem.indexOfScalarPos(u8, fields, pos, ';') orelse fields.len;
+                pos = value_end;
+                value = fields[value_start..value_end];
+            } else blk: {
+                // skip the double quote
+                pos = value_start + 1;
+                var write_pos = pos;
+                while (pos < fields.len) {
+                    switch (fields[pos]) {
+                        '\\' => {
+                            if (pos == fields.len) {
+                                return error.InvalidMultiPartEncoding;
+                            }
+                            // supposedly MSIE doesn't always escape \,
+                            // so if the \ isn't escape one of the special characters,
+                            // it must be a single \.
+                            switch (fields[pos + 1]) {
+                                '(', ')', '<', '>', '@', ',', ';', ':', '"', '/', '[', ']', '?', '=' => |n| {
+                                    fields[write_pos] = n;
+                                    pos += 1;
+                                },
+                                else => fields[write_pos] = '\\',
+                            }
+                        },
+                        '"' => {
+                            pos += 1;
+                            value = fields[value_start + 1 .. write_pos];
+                            break :blk;
+                        },
+                        else => |b| fields[write_pos] = b,
+                    }
+                    pos += 1;
+                    write_pos += 1;
+                }
+                return error.InvalidMultiPartEncoding;
+            }
+
+            if (std.mem.eql(u8, field_name, "name")) {
+                name = value;
+            } else if (std.mem.eql(u8, field_name, "filename")) {
+                filename = value;
+            }
+        }
+
+        return .{
+            .name = name orelse return error.InvalidMultiPartEncoding,
+            .filename = filename,
+        };
+    }
+
     // Is needed to allocate memory to parse the querystring.
     // Specifically, if there's a url-escaped component (a key or value),
     // is needed memory to store the un-escaped version.
