@@ -163,4 +163,46 @@ pub const Request = struct {
         }
         return self.parseMultiFormData();
     }
+
+    // Is needed to allocate memory to parse the querystring.
+    // Specifically, if there's a url-escaped component (a key or value),
+    // is needed memory to store the un-escaped version.
+    fn parseQuery(self: *Request) !KeyValue {
+        const raw = self.url.query;
+        if (raw.len == 0) {
+            self.qs_read = true;
+            return self.qs;
+        }
+
+        var qs = &self.qs;
+        var buf = self.spare;
+        const allocator = self.arena;
+
+        var it = std.mem.splitScalar(u8, raw, '&');
+        while (it.next()) |pair| {
+            if (std.mem.indexOfScalarPos(u8, pair, 0, '=')) |sep| {
+                const key_res = try Url.unescape(allocator, buf, pair[0..sep]);
+                if (key_res.buffered) {
+                    buf = buf[key_res.value.len..];
+                }
+
+                const value_res = try Url.unescape(allocator, buf, pair[sep + 1 ..]);
+                if (value_res.buffered) {
+                    buf = buf[value_res.value.len..];
+                }
+
+                qs.add(key_res.value, value_res.value);
+            } else {
+                const key_res = try Url.unescape(allocator, buf, pair);
+                if (key_res.buffered) {
+                    buf = buf[key_res.value.len..];
+                }
+                qs.add(key_res.value, "");
+            }
+        }
+
+        self.spare = buf;
+        self.qs_read = true;
+        return self.qs;
+    }
 };
