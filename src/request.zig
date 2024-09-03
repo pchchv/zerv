@@ -114,4 +114,22 @@ pub const Request = struct {
         }
         return self.parseQuery();
     }
+
+    pub fn json(self: *Request, comptime T: type) !?T {
+        const b = self.body() orelse return null;
+        return try std.json.parseFromSliceLeaky(T, self.arena, b, .{});
+    }
+
+    pub fn jsonValue(self: *Request) !?std.json.Value {
+        const b = self.body() orelse return null;
+        return try std.json.parseFromSliceLeaky(std.json.Value, self.arena, b, .{});
+    }
+
+    pub fn jsonObject(self: *Request) !?std.json.ObjectMap {
+        const value = try self.jsonValue() orelse return null;
+        switch (value) {
+            .object => |o| return o,
+            else => return null,
+        }
+    }
 };
