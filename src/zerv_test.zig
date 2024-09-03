@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const websocket = @import("websocket");
 
-const t = @import("test.zig");
+pub const t = @import("test.zig");
 pub const zerv = @import("zerv.zog");
 pub const testing = @import("testing.zig");
 pub const middleware = @import("middleware/middleware.zig");
@@ -83,6 +83,10 @@ const TestMiddleware = struct {
 // TestDummyHandler simulates having a void handler,
 // but keeps the test actions organized within this namespace.
 const TestDummyHandler = struct {
+    const RouteData = struct {
+        power: usize,
+    };
+
     fn fail(_: *Request, _: *Response) !void {
         return error.Failure;
     }
@@ -99,9 +103,15 @@ const TestDummyHandler = struct {
         try res.chunk("Chunk 1");
         try res.chunk("and another chunk");
     }
+
     fn jsonRes(_: *Request, res: *Response) !void {
         res.status = 201;
         try res.json(.{ .over = 9000, .teg = "soup" }, .{});
+    }
+
+    fn routeData(req: *Request, res: *Response) !void {
+        const rd: *const RouteData = @ptrCast(@alignCast(req.route_data.?));
+        try res.json(.{ .power = rd.power }, .{});
     }
 
     fn eventStream(_: *Request, res: *Response) !void {
