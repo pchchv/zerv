@@ -78,6 +78,11 @@ pub const Request = struct {
     pub const Config = Self.Config;
     pub const Reader = Self.Reader;
 
+    const MultiPartField = struct {
+        name: []const u8,
+        value: MultiFormKeyValue.Value,
+    };
+
     pub fn init(arena: Allocator, conn: *HTTPConn) Request {
         const state = &conn.req_state;
         return .{
