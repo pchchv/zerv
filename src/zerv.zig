@@ -495,10 +495,31 @@ pub fn Server(comptime H: type) type {
             conn.handover = if (conn.request_count < self._max_request_per_connection and req.canKeepAlive()) .keepalive else .close;
 
             if (comptime std.meta.hasFn(Handler, "handle")) {
+                if (comptime @typeInfo(@TypeOf(Handler.handle)).@"fn".return_type != void) {
+                    @compileError(@typeName(Handler) ++ ".handle must return 'void'");
+                }
                 self.handler.handle(&req, &res);
             } else {
                 const dispatchable_action = self._router.route(req.method, req.url.path, &req.params);
-                self.dispatch(dispatchable_action, &req, &res) catch |err| {
+
+                var executor = Executor{
+                    .index = 0,
+                    .req = &req,
+                    .res = &res,
+                    .handler = self.handler,
+                    .middlewares = undefined,
+                    .dispatchable_action = dispatchable_action,
+                };
+
+                if (dispatchable_action) |da| {
+                    req.route_data = da.data;
+                    executor.middlewares = da.middlewares;
+                } else {
+                    req.route_data = null;
+                    executor.middlewares = self._middlewares;
+                }
+
+                executor.next() catch |err| {
                     if (comptime std.meta.hasFn(Handler, "uncaughtError")) {
                         self.handler.uncaughtError(&req, &res, err);
                     } else {
