@@ -302,8 +302,9 @@ pub fn Server(comptime H: type) type {
                 .arena = arena.allocator(),
                 ._mut = .{},
                 ._cond = .{},
-                ._middlewares = .{},
+                ._middleware_registry = .{},
                 ._signals = signals,
+                ._middlewares = &.{},
                 ._thread_pool = thread_pool,
                 ._websocket_state = websocket_state,
                 ._router = try Router(H, ActionArg).init(arena.allocator(), default_dispatcher, handler),
@@ -315,7 +316,7 @@ pub fn Server(comptime H: type) type {
             self._thread_pool.stop();
             self._websocket_state.deinit();
 
-            var node = self._middlewares.first;
+            var node = self._middleware_registry.first;
             while (node) |n| {
                 n.data.deinit();
                 node = n.next;
