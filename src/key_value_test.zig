@@ -1,4 +1,4 @@
-const t = @import("t.zig");
+const t = @import("test.zig");
 const kval = @import("key_value.zig");
 
 const KeyValue = kval.KeyValue;
