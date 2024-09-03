@@ -3,6 +3,8 @@ const std = @import("std");
 const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
 
+const Self = @This();
+
 const Url = @import("url.zig").Url;
 const Params = @import("params.zig").Params;
 const KeyValue = @import("key_value.zig").KeyValue;
@@ -58,4 +60,15 @@ pub const Request = struct {
     // internally by this framework. The application is also free to make use of
     // this arena. This is the same arena as response.arena.
     arena: Allocator,
+
+    route_data: ?*const anyopaque,
+
+    // Arbitrary place for middlewares (or really anyone), to store data.
+    // Middleware can store data here while executing, and then provide a function
+    // to retrieved the [typed] data to the action.
+    middlewares: *std.StringHashMap(*anyopaque),
+
+    pub const State = Self.State;
+    pub const Config = Self.Config;
+    pub const Reader = Self.Reader;
 };
