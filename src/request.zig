@@ -2,6 +2,7 @@ const std = @import("std");
 
 const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
+// const metrics = @import("metrics.zig");
 
 const Self = @This();
 
@@ -10,9 +11,13 @@ const Params = @import("params.zig").Params;
 const HTTPConn = @import("worker.zig").HTTPConn;
 const KeyValue = @import("key_value.zig").KeyValue;
 const MultiFormKeyValue = @import("key_value.zig").MultiFormKeyValue;
+// const Config = @import("config.zig").Config.Request;
 
+// const os = std.os;
+// const Stream = std.net.Stream;
 const Address = std.net.Address;
 const Allocator = std.mem.Allocator;
+// const ArenaAllocator = std.heap.ArenaAllocator;
 
 pub const Request = struct {
     // The URL of the request
@@ -143,5 +148,19 @@ pub const Request = struct {
             },
             zerv.Protocol.HTTP10 => return false, // TODO: support this in the cases where it can be
         };
+    }
+
+    pub fn formData(self: *Request) !KeyValue {
+        if (self.fd_read) {
+            return self.fd;
+        }
+        return self.parseFormData();
+    }
+
+    pub fn multiFormData(self: *Request) !MultiFormKeyValue {
+        if (self.fd_read) {
+            return self.mfd;
+        }
+        return self.parseMultiFormData();
     }
 };
