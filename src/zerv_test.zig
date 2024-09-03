@@ -884,6 +884,16 @@ test "zerv: request in chunks" {
     try t.expectString("HTTP/1.1 200 \r\nContent-Length: 18\r\n\r\nversion=v2,user=11", testReadAll(stream, &buf));
 }
 
+test "zerv: route data" {
+    const stream = testStream(5992);
+    defer stream.close();
+    try stream.writeAll("GET /test/route_data HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+
+    var res = testReadParsed(stream);
+    defer res.deinit();
+    try res.expectJson(.{ .power = 12345 });
+}
+
 test "ContentType: forX" {
     inline for (@typeInfo(ContentType).@"enum".fields) |field| {
         if (comptime std.mem.eql(u8, "BINARY", field.name)) continue;
