@@ -227,14 +227,17 @@ pub fn Action(comptime ActionContext: type) type {
 
 pub fn Server(comptime H: type) type {
     const Handler = switch (@typeInfo(H)) {
-        .Struct => H,
-        .Pointer => |ptr| ptr.child,
-        .Void => void,
+        .@"struct" => H,
+        .pointer => |ptr| ptr.child,
+        .void => void,
         else => @compileError("Server handler must be a struct, got: " ++ @tagName(@typeInfo(H))),
     };
 
-    const ActionArg = if (comptime std.meta.hasFn(Handler, "dispatch")) @typeInfo(@TypeOf(Handler.dispatch)).Fn.params[1].type.? else Action(H);
+    const ActionArg = if (comptime std.meta.hasFn(Handler, "dispatch")) @typeInfo(@TypeOf(Handler.dispatch)).@"fn".params[1].type.? else Action(H);
     const WebsocketHandler = if (Handler != void and comptime @hasDecl(Handler, "WebsocketHandler")) Handler.WebsocketHandler else DummyWebsocketHandler;
+    const RouterConfig = struct {
+        middlewares: []const Middleware(H) = &.{},
+    };
 
     return struct {
         const TP = if (blockingMode()) ThreadPool(worker.Blocking(*Self, WebsocketHandler).handleConnection) else ThreadPool(worker.NonBlocking(*Self, WebsocketHandler).processData);
@@ -250,7 +253,8 @@ pub fn Server(comptime H: type) type {
         _signals: []posix.fd_t,
         _max_request_per_connection: u64,
         _websocket_state: websocket.server.WorkerState,
-        _middlewares: std.SinglyLinkedList(Middleware(H)),
+        _middlewares: []const Middleware(H),
+        _middleware_registry: std.SinglyLinkedList(Middleware(H)),
 
         const Self = @This();
 
