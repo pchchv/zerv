@@ -93,4 +93,18 @@ pub const Request = struct {
             .middlewares = &state.middlewares,
         };
     }
+
+    pub fn body(self: *const Request) ?[]const u8 {
+        const buf = self.body_buffer orelse return null;
+        return buf.data[0..self.body_len];
+    }
+
+    /// `name` should be full lowercase
+    pub fn header(self: *const Request, name: []const u8) ?[]const u8 {
+        return self.headers.get(name);
+    }
+
+    pub fn param(self: *const Request, name: []const u8) ?[]const u8 {
+        return self.params.get(name);
+    }
 };
