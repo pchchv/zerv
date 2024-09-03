@@ -7,6 +7,7 @@ const Self = @This();
 
 const Url = @import("url.zig").Url;
 const Params = @import("params.zig").Params;
+const HTTPConn = @import("worker.zig").HTTPConn;
 const KeyValue = @import("key_value.zig").KeyValue;
 const MultiFormKeyValue = @import("key_value.zig").MultiFormKeyValue;
 
@@ -71,4 +72,25 @@ pub const Request = struct {
     pub const State = Self.State;
     pub const Config = Self.Config;
     pub const Reader = Self.Reader;
+
+    pub fn init(arena: Allocator, conn: *HTTPConn) Request {
+        const state = &conn.req_state;
+        return .{
+            .arena = arena,
+            .qs = state.qs,
+            .fd = state.fd,
+            .mfd = state.mfd,
+            .method = state.method.?,
+            .protocol = state.protocol.?,
+            .url = Url.parse(state.url.?),
+            .address = conn.address,
+            .route_data = null,
+            .params = state.params,
+            .headers = state.headers,
+            .body_buffer = state.body,
+            .body_len = state.body_len,
+            .spare = state.buf[state.pos..],
+            .middlewares = &state.middlewares,
+        };
+    }
 };
