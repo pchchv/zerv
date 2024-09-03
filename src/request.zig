@@ -107,4 +107,11 @@ pub const Request = struct {
     pub fn param(self: *const Request, name: []const u8) ?[]const u8 {
         return self.params.get(name);
     }
+
+    pub fn query(self: *Request) !KeyValue {
+        if (self.qs_read) {
+            return self.qs;
+        }
+        return self.parseQuery();
+    }
 };
