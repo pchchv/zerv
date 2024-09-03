@@ -552,7 +552,7 @@ pub fn Server(comptime H: type) type {
 
             const m = try arena.create(M);
             errdefer arena.destroy(m);
-            switch (comptime @typeInfo(@TypeOf(M.init)).Fn.params.len) {
+            switch (comptime @typeInfo(@TypeOf(M.init)).@"fn".params.len) {
                 1 => m.* = try M.init(config),
                 2 => m.* = try M.init(config, MiddlewareConfig{
                     .arena = arena,
@@ -563,7 +563,7 @@ pub fn Server(comptime H: type) type {
 
             const iface = Middleware(H).init(m);
             node.data = iface;
-            self._middlewares.prepend(node);
+            self._middleware_registry.prepend(node);
 
             return iface;
         }
