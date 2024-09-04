@@ -2,6 +2,7 @@ const std = @import("std");
 
 const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
+const metrics = @import("metrics.zig");
 
 const Self = @This();
 
@@ -548,6 +549,62 @@ pub const State = struct {
         self.params.deinit(allocator);
         self.headers.deinit(allocator);
         self.middlewares.deinit();
+    }
+
+    pub fn reset(self: *State) void {
+        self.pos = 0;
+        self.len = 0;
+        self.url = null;
+        self.method = null;
+        self.protocol = null;
+
+        self.body_pos = 0;
+        self.body_len = 0;
+        if (self.body) |buf| {
+            self.buffer_pool.release(buf);
+            self.body = null;
+        }
+
+        self.qs.reset();
+        self.fd.reset();
+        self.mfd.reset();
+        self.params.reset();
+        self.headers.reset();
+        self.middlewares.clearRetainingCapacity();
+    }
+
+    // returns true if the header has been fully parsed
+    pub fn parse(self: *State, stream: anytype) !bool {
+        if (self.body != null) {
+            // if there is a body, then the header is read.
+            // It is necessary to read in self.body, not self.buf.
+            return self.readBody(stream);
+        }
+
+        var len = self.len;
+        const buf = self.buf;
+        const n = try stream.read(buf[len..]);
+        if (n == 0) {
+            return error.ConnectionClosed;
+        }
+        len = len + n;
+        self.len = len;
+
+        if (self.method == null) {
+            if (try self.parseMethod(buf[0..len])) return true;
+        } else if (self.url == null) {
+            if (try self.parseUrl(buf[self.pos..len])) return true;
+        } else if (self.protocol == null) {
+            if (try self.parseProtocol(buf[self.pos..len])) return true;
+        } else {
+            if (try self.parseHeaders(buf[self.pos..len])) return true;
+        }
+
+        if (self.body == null and len == buf.len) {
+            metrics.headerTooBig();
+            return error.HeaderTooBig;
+        }
+        return false;
     }
 };
 
