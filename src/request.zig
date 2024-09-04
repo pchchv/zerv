@@ -372,6 +372,87 @@ pub const Request = struct {
             },
         };
     }
+
+    fn parseMultiFormData(self: *Request) !MultiFormKeyValue {
+        const body_ = self.body() orelse "";
+        if (body_.len == 0) {
+            self.fd_read = true;
+            return self.mfd;
+        }
+
+        const content_type = blk: {
+            if (self.header("content-type")) |content_type| {
+                if (std.ascii.startsWithIgnoreCase(content_type, "multipart/form-data")) {
+                    break :blk content_type;
+                }
+            }
+            return error.NotMultipartForm;
+        };
+
+        // Max boundary length is 70.
+        // Plus the two leading dashes (--)
+        var boundary_buf: [72]u8 = undefined;
+        const boundary = blk: {
+            const directive = content_type["multipart/form-data".len..];
+            for (directive, 0..) |b, i| loop: {
+                if (b != ' ' and b != ';') {
+                    if (std.ascii.startsWithIgnoreCase(directive[i..], "boundary=")) {
+                        const raw_boundary = directive["boundary=".len + i ..];
+                        if (raw_boundary.len > 0 and raw_boundary.len <= 70) {
+                            boundary_buf[0] = '-';
+                            boundary_buf[1] = '-';
+                            if (raw_boundary[0] == '"') {
+                                if (raw_boundary.len > 2 and raw_boundary[raw_boundary.len - 1] == '"') {
+                                    // it's really -2, since we need to strip out the two quotes
+                                    // but buf is already at + 2, so they cancel out.
+                                    const end = raw_boundary.len;
+                                    @memcpy(boundary_buf[2..end], raw_boundary[1 .. raw_boundary.len - 1]);
+                                    break :blk boundary_buf[0..end];
+                                }
+                            } else {
+                                const end = 2 + raw_boundary.len;
+                                @memcpy(boundary_buf[2..end], raw_boundary);
+                                break :blk boundary_buf[0..end];
+                            }
+                        }
+                    }
+                    // not valid, break out of the loop
+                    // can return an error.InvalidMultiPartFormDataHeader
+                    break :loop;
+                }
+            }
+            return error.InvalidMultiPartFormDataHeader;
+        };
+
+        var mfd = &self.mfd;
+        var entry_it = std.mem.splitSequence(u8, body_, boundary);
+        {
+            // expect the body to begin with a boundary
+            const first = entry_it.next() orelse {
+                self.fd_read = true;
+                return self.mfd;
+            };
+            if (first.len != 0) {
+                return error.InvalidMultiPartEncoding;
+            }
+        }
+
+        while (entry_it.next()) |entry| {
+            // body ends with -- after a final boundary
+            if (entry.len == 4 and entry[0] == '-' and entry[1] == '-' and entry[2] == '\r' and entry[3] == '\n') {
+                break;
+            }
+
+            if (entry.len < 2 or entry[0] != '\r' or entry[1] != '\n') return error.InvalidMultiPartEncoding;
+
+            // [2..] to skip boundary's trailing line terminator
+            const field = try parseMultiPartEntry(entry[2..]);
+            mfd.add(field.name, field.value);
+        }
+
+        self.fd_read = true;
+        return self.mfd;
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
