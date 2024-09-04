@@ -10,6 +10,7 @@ const Params = @import("params.zig").Params;
 const HTTPConn = @import("worker.zig").HTTPConn;
 const KeyValue = @import("key_value.zig").KeyValue;
 const MultiFormKeyValue = @import("key_value.zig").MultiFormKeyValue;
+const Config = @import("config.zig").Config.Request;
 
 const Address = std.net.Address;
 const Allocator = std.mem.Allocator;
@@ -511,6 +512,29 @@ pub const State = struct {
     arena: *ArenaAllocator,
 
     middlewares: std.StringHashMap(*anyopaque),
+
+    pub fn init(allocator: Allocator, arena: *ArenaAllocator, buffer_pool: *buffer.Pool, config: *const Config) !Request.State {
+        return .{
+            .pos = 0,
+            .len = 0,
+            .url = null,
+            .method = null,
+            .protocol = null,
+            .body = null,
+            .body_pos = 0,
+            .body_len = 0,
+            .arena = arena,
+            .buffer_pool = buffer_pool,
+            .max_body_size = config.max_body_size orelse 1_048_576,
+            .middlewares = std.StringHashMap(*anyopaque).init(allocator),
+            .qs = try KeyValue.init(allocator, config.max_query_count orelse 32),
+            .fd = try KeyValue.init(allocator, config.max_form_count orelse 0),
+            .mfd = try MultiFormKeyValue.init(allocator, config.max_multiform_count orelse 0),
+            .buf = try allocator.alloc(u8, config.buffer_size orelse 4_096),
+            .headers = try KeyValue.init(allocator, config.max_header_count orelse 32),
+            .params = try Params.init(allocator, config.max_param_count orelse 10),
+        };
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
