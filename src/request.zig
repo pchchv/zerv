@@ -2,7 +2,6 @@ const std = @import("std");
 
 const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
-// const metrics = @import("metrics.zig");
 
 const Self = @This();
 
@@ -11,13 +10,10 @@ const Params = @import("params.zig").Params;
 const HTTPConn = @import("worker.zig").HTTPConn;
 const KeyValue = @import("key_value.zig").KeyValue;
 const MultiFormKeyValue = @import("key_value.zig").MultiFormKeyValue;
-// const Config = @import("config.zig").Config.Request;
 
-// const os = std.os;
-// const Stream = std.net.Stream;
 const Address = std.net.Address;
 const Allocator = std.mem.Allocator;
-// const ArenaAllocator = std.heap.ArenaAllocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 
 pub const Request = struct {
     // The URL of the request
@@ -453,6 +449,68 @@ pub const Request = struct {
         self.fd_read = true;
         return self.mfd;
     }
+};
+
+// All зщыышиду the upfront memory allocation.
+// Each worker keeps a pool of these to reuse.
+pub const State = struct {
+    // Header must fit in here.
+    // Extra space can be used to fit the body or decode URL parameters.
+    buf: []u8,
+
+    // position in buf that we've parsed up to
+    pos: usize,
+
+    // length of buffer for which we have valid data
+    len: usize,
+
+    // Lazy-loaded in request.query();
+    qs: KeyValue,
+
+    // Lazy-loaded in request.formData();
+    fd: KeyValue,
+
+    // Lazy-loaded in request.multiFormData();
+    mfd: MultiFormKeyValue,
+
+    // Populated after we've parsed the request,
+    // once matching the request to a route.
+    params: Params,
+
+    // constant config, but it's the only field needed,
+    max_body_size: usize,
+
+    // For reading the body, might needed more than `buf`.
+    buffer_pool: *buffer.Pool,
+
+    url: ?[]u8,
+
+    method: ?zerv.Method,
+
+    protocol: ?zerv.Protocol,
+
+    // The headers, might be partially parsed.
+    // From the outside, there's no way to know if this is fully parsed or not.
+    // There doesn't have to be.
+    // This is because once finish parsing the headers,
+    // if there's no body,
+    // signal the worker that have a complete request and it can proceed to handle it.
+    // Thus, body == null or body_len == 0 doesn't mean anything.
+    headers: KeyValue,
+
+    // This be a slice pointing to` buf`,
+    // or be from the buffer_pool or be dynamically allocated.
+    body: ?buffer.Buffer,
+
+    // position in body.data that have valid data for
+    body_pos: usize,
+
+    // the full length of the body, might not have that much data yet
+    body_len: usize,
+
+    arena: *ArenaAllocator,
+
+    middlewares: std.StringHashMap(*anyopaque),
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
