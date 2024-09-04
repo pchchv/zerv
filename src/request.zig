@@ -535,6 +535,20 @@ pub const State = struct {
             .params = try Params.init(allocator, config.max_param_count orelse 10),
         };
     }
+
+    pub fn deinit(self: *State, allocator: Allocator) void {
+        if (self.body) |buf| {
+            self.buffer_pool.release(buf);
+            self.body = null;
+        }
+        allocator.free(self.buf);
+        self.qs.deinit(allocator);
+        self.fd.deinit(allocator);
+        self.mfd.deinit(allocator);
+        self.params.deinit(allocator);
+        self.headers.deinit(allocator);
+        self.middlewares.deinit();
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
