@@ -326,6 +326,52 @@ pub const Request = struct {
         self.fd_read = true;
         return self.fd;
     }
+
+    fn parseMultiPartEntry(entry: []const u8) !MultiPartField {
+        var pos: usize = 0;
+        var attributes: ?ContentDispositionAttributes = null;
+        while (true) {
+            const end_line_pos = std.mem.indexOfScalarPos(u8, entry, pos, '\n') orelse return error.InvalidMultiPartEncoding;
+            const line = entry[pos..end_line_pos];
+
+            pos = end_line_pos + 1;
+            if (line.len == 0 or line[line.len - 1] != '\r') return error.InvalidMultiPartEncoding;
+
+            if (line.len == 1) {
+                break;
+            }
+
+            // is needed to look for the name
+            if (std.ascii.startsWithIgnoreCase(line, "content-disposition:") == false) {
+                continue;
+            }
+
+            const value = trimLeadingSpace(line["content-disposition:".len..]);
+            if (std.ascii.startsWithIgnoreCase(value, "form-data;") == false) {
+                return error.InvalidMultiPartEncoding;
+            }
+
+            // constCast is safe here because this ultilately comes from one of buffers
+            const value_start = "form-data;".len;
+            const value_end = value.len - 1; // remove the trailing \r
+            attributes = try getContentDispotionAttributes(@constCast(trimLeadingSpace(value[value_start..value_end])));
+        }
+
+        const value = entry[pos..];
+        if (value.len < 2 or value[value.len - 2] != '\r' or value[value.len - 1] != '\n') {
+            return error.InvalidMultiPartEncoding;
+        }
+
+        const attr = attributes orelse return error.InvalidMultiPartEncoding;
+
+        return .{
+            .name = attr.name,
+            .value = .{
+                .value = value[0 .. value.len - 2],
+                .filename = attr.filename,
+            },
+        };
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
