@@ -289,6 +289,43 @@ pub const Request = struct {
         self.qs_read = true;
         return self.qs;
     }
+
+    fn parseFormData(self: *Request) !KeyValue {
+        const b = self.body() orelse "";
+        if (b.len == 0) {
+            self.fd_read = true;
+            return self.fd;
+        }
+
+        const allocator = self.arena;
+        var fd = &self.fd;
+        var buf = self.spare;
+        var it = std.mem.splitScalar(u8, b, '&');
+        while (it.next()) |pair| {
+            if (std.mem.indexOfScalarPos(u8, pair, 0, '=')) |sep| {
+                const key_res = try Url.unescape(allocator, buf, pair[0..sep]);
+                if (key_res.buffered) {
+                    buf = buf[key_res.value.len..];
+                }
+
+                const value_res = try Url.unescape(allocator, buf, pair[sep + 1 ..]);
+                if (value_res.buffered) {
+                    buf = buf[value_res.value.len..];
+                }
+                fd.add(key_res.value, value_res.value);
+            } else {
+                const key_res = try Url.unescape(allocator, buf, pair);
+                if (key_res.buffered) {
+                    buf = buf[key_res.value.len..];
+                }
+                fd.add(key_res.value, "");
+            }
+        }
+
+        self.spare = buf;
+        self.fd_read = true;
+        return self.fd;
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
