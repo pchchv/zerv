@@ -765,6 +765,92 @@ pub const State = struct {
         self.body_pos = read;
         return false;
     }
+
+    fn parseHeaders(self: *State, full: []u8) !bool {
+        var buf = full;
+        var headers = &self.headers;
+        line: while (buf.len > 0) {
+            for (buf, 0..) |bn, i| {
+                switch (bn) {
+                    'a'...'z', '0'...'9', '-', '_' => {},
+                    'A'...'Z' => buf[i] = bn + 32,
+                    ':' => {
+                        const value_start = i + 1; // skip the colon
+                        var value, const skip_len = trimLeadingSpaceCount(buf[value_start..]);
+                        for (value, 0..) |bv, j| {
+                            if (allowedHeaderValueByte(bv) == true) {
+                                continue;
+                            }
+
+                            // To keep ALLOWED_HEADER_VALUE small,
+                            // said \r was illegal.
+                            // Means, it _is_ illegal in a header value but it isn't part of the header value,
+                            // it's (probably) the end of line
+                            if (bv != '\r') {
+                                return error.InvalidHeaderLine;
+                            }
+
+                            const next = j + 1;
+                            if (next == value.len) {
+                                // don't have any more data, can't tell
+                                return false;
+                            }
+
+                            if (value[next] != '\n') {
+                                // have a \r followed by something that isn't a \n.
+                                // Can't be valid
+                                return error.InvalidHeaderLine;
+                            }
+
+                            // If here, it means value had valid characters up until the point of a newline (\r\n),
+                            // which means have a valid value (and name)
+                            value = value[0..j];
+                            break;
+                        } else {
+                            // for loop reached the end without finding a \r is needed more data
+                            return false;
+                        }
+
+                        const name = buf[0..i];
+                        headers.add(name, value);
+
+                        // +2 to skip the \r\n
+                        const next_line = value_start + skip_len + value.len + 2;
+                        self.pos += next_line;
+                        buf = buf[next_line..];
+                        continue :line;
+                    },
+                    '\r' => {
+                        if (i != 0) {
+                            // Still parsing the header name,
+                            // so a \r should either be at the very start
+                            // (to indicate the end of our headers)
+                            // or not be there at all
+                            return error.InvalidHeaderLine;
+                        }
+
+                        if (buf.len == 1) {
+                            // don't have any more data, is needed more data
+                            return false;
+                        }
+
+                        if (buf[1] == '\n') {
+                            // have \r\n at the start of a line, is done
+                            self.pos += 2;
+                            return try self.prepareForBody();
+                        }
+                        // have a \r followed by something that isn't a \n, can't be right
+                        return error.InvalidHeaderLine;
+                    },
+                    else => return error.InvalidHeaderLine,
+                }
+            } else {
+                // didn't find a colon or blank line, is needed more data
+                return false;
+            }
+        }
+        return false;
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
