@@ -514,6 +514,8 @@ pub const State = struct {
 
     middlewares: std.StringHashMap(*anyopaque),
 
+    const asUint = Url.asUint;
+
     pub fn init(allocator: Allocator, arena: *ArenaAllocator, buffer_pool: *buffer.Pool, config: *const Config) !Request.State {
         return .{
             .pos = 0,
@@ -605,6 +607,60 @@ pub const State = struct {
             return error.HeaderTooBig;
         }
         return false;
+    }
+
+    fn parseMethod(self: *State, buf: []u8) !bool {
+        const buf_len = buf.len;
+
+        // The shortest method is only 3 characters long (+1 space at the end of the string),
+        // so it seems like it should be:
+        // if (buf_len < 4)
+        // But the longest method, OPTIONS, is 7 characters long (+1 space at the end of the string).
+        // Now, even if the method is short, such as “GET”, the URL + protocol is expected in the end.
+        // A shorter valid string: e.g. GET / HTTP/1.1
+        // If buf_len < 8, may be a method, but still needs more data, and can be aborted earlier.
+        // If buf_len > = 8, it is safe to parse any (valid) method without resorting to other bound-checks.
+        if (buf_len < 8) return false;
+
+        // this approach to matching method name comes from zhp
+        switch (@as(u32, @bitCast(buf[0..4].*))) {
+            asUint("GET ") => {
+                self.pos = 4;
+                self.method = .GET;
+            },
+            asUint("PUT ") => {
+                self.pos = 4;
+                self.method = .PUT;
+            },
+            asUint("POST") => {
+                if (buf[4] != ' ') return error.UnknownMethod;
+                self.pos = 5;
+                self.method = .POST;
+            },
+            asUint("HEAD") => {
+                if (buf[4] != ' ') return error.UnknownMethod;
+                self.pos = 5;
+                self.method = .HEAD;
+            },
+            asUint("PATC") => {
+                if (buf[4] != 'H' or buf[5] != ' ') return error.UnknownMethod;
+                self.pos = 6;
+                self.method = .PATCH;
+            },
+            asUint("DELE") => {
+                if (@as(u32, @bitCast(buf[3..7].*)) != asUint("ETE ")) return error.UnknownMethod;
+                self.pos = 7;
+                self.method = .DELETE;
+            },
+            asUint("OPTI") => {
+                if (@as(u32, @bitCast(buf[4..8].*)) != asUint("ONS ")) return error.UnknownMethod;
+                self.pos = 8;
+                self.method = .OPTIONS;
+            },
+            else => return error.UnknownMethod,
+        }
+
+        return try self.parseUrl(buf[self.pos..]);
     }
 };
 
