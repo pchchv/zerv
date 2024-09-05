@@ -662,6 +662,56 @@ pub const State = struct {
 
         return try self.parseUrl(buf[self.pos..]);
     }
+
+    fn parseUrl(self: *State, buf: []u8) !bool {
+        const buf_len = buf.len;
+        if (buf_len == 0) return false;
+
+        var len: usize = 0;
+        switch (buf[0]) {
+            '/' => {
+                const end_index = std.mem.indexOfScalarPos(u8, buf[1..buf_len], 0, ' ') orelse return false;
+                // +1 since skipped the leading / in indexOfScalar and +1 to consume the space
+                len = end_index + 2;
+                const url = buf[0 .. end_index + 1];
+                if (!Url.isValid(url)) return error.InvalidRequestTarget;
+                self.url = url;
+            },
+            '*' => {
+                if (buf_len == 1) return false;
+                // Read never returns 0, so if its here, buf.len >= 1
+                if (buf[1] != ' ') return error.InvalidRequestTarget;
+                len = 2;
+                self.url = buf[0..1];
+            },
+            else => return error.InvalidRequestTarget,
+        }
+
+        self.pos += len;
+        return self.parseProtocol(buf[len..]);
+    }
+
+    fn parseProtocol(self: *State, buf: []u8) !bool {
+        const buf_len = buf.len;
+        if (buf_len < 10) return false;
+
+        if (@as(u32, @bitCast(buf[0..4].*)) != asUint("HTTP")) {
+            return error.UnknownProtocol;
+        }
+
+        self.protocol = switch (@as(u32, @bitCast(buf[4..8].*))) {
+            asUint("/1.1") => zerv.Protocol.HTTP11,
+            asUint("/1.0") => zerv.Protocol.HTTP10,
+            else => return error.UnsupportedProtocol,
+        };
+
+        if (buf[8] != '\r' or buf[9] != '\n') {
+            return error.UnknownProtocol;
+        }
+
+        self.pos += 10;
+        return try self.parseHeaders(buf[10..]);
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
