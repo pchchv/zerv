@@ -3,6 +3,8 @@ const std = @import("std");
 const t = @import("test.zig");
 const r = @import("request.zeg");
 
+const Config = @import("config.zig").Config.Request;
+
 const atoi = r.atoi;
 const allowedHeaderValueByte = r.allowedHeaderValueByte;
 
@@ -32,4 +34,12 @@ test "allowedHeaderValueByte" {
     for (all, 0..) |allowed, b| {
         try t.expectEqual(allowed, allowedHeaderValueByte(@intCast(b)));
     }
+}
+
+fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
+    var ctx = t.Context.init(.{ .request = config });
+    defer ctx.deinit();
+
+    ctx.write(input);
+    try t.expectError(expected, ctx.conn.req_state.parse(ctx.stream));
 }
