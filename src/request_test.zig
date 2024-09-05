@@ -36,6 +36,38 @@ test "allowedHeaderValueByte" {
     }
 }
 
+test "request: header too big" {
+    try expectParseError(error.HeaderTooBig, "GET / HTTP/1.1\r\n\r\n", .{ .buffer_size = 17 });
+    try expectParseError(error.HeaderTooBig, "GET / HTTP/1.1\r\nH: v\r\n\r\n", .{ .buffer_size = 23 });
+}
+
+test "request: parse headers" {
+    defer t.reset();
+    {
+        try expectParseError(error.InvalidHeaderLine, "GET / HTTP/1.1\r\nHost\r\n", .{});
+    }
+
+    {
+        const r = try testParse("PUT / HTTP/1.0\r\n\r\n", .{});
+        try t.expectEqual(0, r.headers.len);
+    }
+
+    {
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\n\r\n", .{});
+
+        try t.expectEqual(1, r.headers.len);
+        try t.expectString("pondzpondz.com", r.headers.get("host").?);
+    }
+
+    {
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\nMisc:  Some-Value\r\nAuthorization:none\r\n\r\n", .{});
+        try t.expectEqual(3, r.headers.len);
+        try t.expectString("pondzpondz.com", r.header("host").?);
+        try t.expectString("Some-Value", r.header("misc").?);
+        try t.expectString("none", r.header("authorization").?);
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
