@@ -1,12 +1,12 @@
 const std = @import("std");
 
 const t = @import("test.zig");
-const r = @import("request.zeg");
+const Request = @import("request.zeg");
 
 const Config = @import("config.zig").Config.Request;
 
-const atoi = r.atoi;
-const allowedHeaderValueByte = r.allowedHeaderValueByte;
+const atoi = Request.atoi;
+const allowedHeaderValueByte = Request.allowedHeaderValueByte;
 
 test "atoi" {
     var buf: [5]u8 = undefined;
