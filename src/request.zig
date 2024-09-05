@@ -453,7 +453,7 @@ pub const Request = struct {
     }
 };
 
-// All зщыышиду the upfront memory allocation.
+// All possible the upfront memory allocation.
 // Each worker keeps a pool of these to reuse.
 pub const State = struct {
     // Header must fit in here.
