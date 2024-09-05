@@ -786,6 +786,14 @@ inline fn trimLeadingSpace(in: []const u8) []const u8 {
     return out;
 }
 
+inline fn allowedHeaderValueByte(c: u8) bool {
+    const mask = 0 | ((1 << (0x7f - 0x21)) - 1) << 0x21 | 1 << 0x20 | 1 << 0x09;
+    const mask1 = ~@as(u64, (mask & ((1 << 64) - 1)));
+    const mask2 = ~@as(u64, mask >> 64);
+    const shl = std.math.shl;
+    return ((shl(u64, 1, c) & mask1) | (shl(u64, 1, c -| 64) & mask2)) == 0;
+}
+
 fn atoi(str: []const u8) ?usize {
     if (str.len == 0) {
         return null;
