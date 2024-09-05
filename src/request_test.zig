@@ -43,3 +43,13 @@ fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void
     ctx.write(input);
     try t.expectError(expected, ctx.conn.req_state.parse(ctx.stream));
 }
+
+fn testParse(input: []const u8, config: Config) !Request {
+    var ctx = t.Context.allocInit(t.arena.allocator(), .{ .request = config });
+    ctx.write(input);
+    while (true) {
+        const done = try ctx.conn.req_state.parse(ctx.stream);
+        if (done) break;
+    }
+    return Request.init(ctx.conn.arena.allocator(), ctx.conn);
+}
