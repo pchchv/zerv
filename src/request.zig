@@ -851,6 +851,22 @@ pub const State = struct {
         }
         return false;
     }
+
+    fn readBody(self: *State, stream: anytype) !bool {
+        var pos = self.body_pos;
+        const buf = self.body.?.data;
+
+        const n = try stream.read(buf[pos..]);
+        if (n == 0) {
+            return error.ConnectionClosed;
+        }
+        pos += n;
+        if (pos == self.body_len) {
+            return true;
+        }
+        self.body_pos = pos;
+        return false;
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
