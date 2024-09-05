@@ -785,3 +785,19 @@ inline fn trimLeadingSpace(in: []const u8) []const u8 {
     const out, _ = trimLeadingSpaceCount(in);
     return out;
 }
+
+fn atoi(str: []const u8) ?usize {
+    if (str.len == 0) {
+        return null;
+    }
+
+    var n: usize = 0;
+    for (str) |b| {
+        if (b < '0' or b > '9') {
+            return null;
+        }
+        n = std.math.mul(usize, n, 10) catch return null;
+        n = std.math.add(usize, n, @intCast(b - '0')) catch return null;
+    }
+    return n;
+}
