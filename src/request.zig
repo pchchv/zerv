@@ -712,6 +712,59 @@ pub const State = struct {
         self.pos += 10;
         return try self.parseHeaders(buf[10..]);
     }
+
+    // finished reading the header
+    fn prepareForBody(self: *State) !bool {
+        const str = self.headers.get("content-length") orelse return true;
+        const cl = atoi(str) orelse return error.InvalidContentLength;
+
+        self.body_len = cl;
+        if (cl == 0) return true;
+
+        if (cl > self.max_body_size) {
+            metrics.bodyTooBig();
+            return error.BodyTooBig;
+        }
+
+        const pos = self.pos;
+        const len = self.len;
+        const buf = self.buf;
+
+        // how much (if any) of the body already reads
+        const read = len - pos;
+
+        if (read == cl) {
+            // read the entire body into buf, point to that.
+            self.body = .{ .type = .static, .data = buf[pos..len] };
+            self.pos = len;
+            return true;
+        }
+
+        // how much of the body are is missing
+        const missing = cl - read;
+
+        // how much spare space have in static buffer
+        const spare = buf.len - len;
+        if (missing < spare) {
+            // don't have the [full] body,
+            // but have enough space in static buffer for it
+            self.body = .{ .type = .static, .data = buf[pos .. pos + cl] };
+
+            // While don't have this yet,
+            // know that this will be the final position of valid data within self.buf.
+            // Is needed this so that create create `spare` slice,
+            // is possible slice starting from self.pos
+            // (everything before that is the full raw request)
+            self.pos = len + missing;
+        } else {
+            // don't have the [full] body, and static buffer is too small
+            const body_buf = try self.buffer_pool.arenaAlloc(self.arena.allocator(), cl);
+            @memcpy(body_buf.data[0..read], buf[pos .. pos + read]);
+            self.body = body_buf;
+        }
+        self.body_pos = read;
+        return false;
+    }
 };
 
 inline fn trimLeadingSpaceCount(in: []const u8) struct { []const u8, usize } {
