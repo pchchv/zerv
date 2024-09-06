@@ -7,15 +7,14 @@ const Params = @import("params.zig").Params;
 const Router = @import("router.zig").Router;
 
 test "route: root" {
-    var params = try Params.init(t.allocator, 5);
-    defer params.deinit(t.allocator);
+    defer t.reset();
 
-    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
-    defer router.deinit(t.allocator);
-    router.get("/", testRoute1);
-    router.put("/", testRoute2);
-    router.post("", testRoute3);
-    router.all("/all", testRoute4);
+    var params = try Params.init(t.arena.allocator(), 5);
+    var router = Router(void, zerv.Action(void)).init(t.arena.allocator(), testDispatcher1, {}) catch unreachable;
+    router.get("/", testRoute1, .{});
+    router.put("/", testRoute2, .{});
+    router.post("", testRoute3, .{});
+    router.all("/all", testRoute4, .{});
 
     const urls = .{ "/", "/other", "/all" };
     try t.expectEqual(&testRoute1, router.route(zerv.Method.GET, "", &params).?.action);
@@ -30,20 +29,20 @@ test "route: root" {
     try t.expectEqual(null, router.route(zerv.Method.DELETE, urls[0], &params));
 
     // test "all" route
-    inline for (@typeInfo(zerv.Method).Enum.fields) |field| {
+    inline for (@typeInfo(zerv.Method).@"enum".fields) |field| {
         const m = @as(zerv.Method, @enumFromInt(field.value));
         try t.expectEqual(&testRoute4, router.route(m, urls[2], &params).?.action);
     }
 }
 
 test "route: static" {
-    var params = try Params.init(t.allocator, 5);
-    defer params.deinit(t.allocator);
+    defer t.reset();
 
-    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
-    defer router.deinit(t.allocator);
-    router.get("hello/world", testRoute1);
-    router.get("/over/9000/", testRoute2);
+    var params = try Params.init(t.arena.allocator(), 5);
+    var router = Router(void, zerv.Action(void)).init(t.arena.allocator(), testDispatcher1, {}) catch unreachable;
+
+    router.get("hello/world", testRoute1, .{});
+    router.get("/over/9000/", testRoute2, .{});
 
     {
         const urls = .{ "hello/world", "/hello/world", "hello/world/", "/hello/world/" };
@@ -74,17 +73,17 @@ test "route: static" {
 }
 
 test "route: params" {
-    var params = try Params.init(t.allocator, 5);
-    defer params.deinit(t.allocator);
+    defer t.reset();
 
-    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
-    defer router.deinit(t.allocator);
-    router.get("/:p1", testRoute1);
-    router.get("/users/:p2", testRoute2);
-    router.get("/users/:p2/fav", testRoute3);
-    router.get("/users/:p2/like", testRoute4);
-    router.get("/users/:p2/fav/:p3", testRoute5);
-    router.get("/users/:p2/like/:p3", testRoute6);
+    var params = try Params.init(t.arena.allocator(), 5);
+    var router = Router(void, zerv.Action(void)).init(t.arena.allocator(), testDispatcher1, {}) catch unreachable;
+
+    router.get("/:p1", testRoute1, .{});
+    router.get("/users/:p2", testRoute2, .{});
+    router.get("/users/:p2/fav", testRoute3, .{});
+    router.get("/users/:p2/like", testRoute4, .{});
+    router.get("/users/:p2/fav/:p3", testRoute5, .{});
+    router.get("/users/:p2/like/:p3", testRoute6, .{});
 
     {
         // root param
@@ -141,15 +140,15 @@ test "route: params" {
 }
 
 test "route: glob" {
-    var params = try Params.init(t.allocator, 5);
-    defer params.deinit(t.allocator);
+    defer t.reset();
 
-    var router = Router(void, zerv.Action(void)).init(t.allocator, testDispatcher1, {}) catch unreachable;
-    defer router.deinit(t.allocator);
-    router.get("/*", testRoute1);
-    router.get("/users/*", testRoute2);
-    router.get("/users/*/test", testRoute3);
-    router.get("/users/other/test", testRoute4);
+    var params = try Params.init(t.arena.allocator(), 5);
+    var router = Router(void, zerv.Action(void)).init(t.arena.allocator(), testDispatcher1, {}) catch unreachable;
+
+    router.get("/*", testRoute1, .{});
+    router.get("/users/*", testRoute2, .{});
+    router.get("/users/*/test", testRoute3, .{});
+    router.get("/users/other/test", testRoute4, .{});
 
     {
         // root glob
