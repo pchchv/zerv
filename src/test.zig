@@ -99,6 +99,22 @@ pub const Context = struct {
             .to_read = std.ArrayList(u8).init(aa),
         };
     }
+
+    pub fn init(config: zerv.Config) Context {
+        return allocInit(allocator, config);
+    }
+
+    pub fn deinit(self: *Context) void {
+        if (self.closed == false) {
+            self.closed = true;
+            self.stream.close();
+        }
+        self.client.close();
+
+        const ctx_allocator = arena.child_allocator;
+        self.arena.deinit();
+        ctx_allocator.destroy(self.arena);
+    }
 };
 
 pub fn reset() void {
