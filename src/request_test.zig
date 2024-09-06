@@ -385,6 +385,118 @@ test "request: fuzz" {
     }
 }
 
+test "body: multiFormData invalid" {
+    defer t.reset();
+    {
+        // large boundary
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=12345678901234567890123456789012345678901234567890123456789012345678901" }, &.{"garbage"}), .{});
+        try t.expectError(error.InvalidMultiPartFormDataHeader, r.multiFormData());
+    }
+
+    {
+        // no closing quote
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=\"123" }, &.{"garbage"}), .{});
+        try t.expectError(error.InvalidMultiPartFormDataHeader, r.multiFormData());
+    }
+
+    {
+        // no content-dispotion field header
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+        try t.expectError(error.InvalidMultiPartEncoding, r.multiFormData());
+    }
+
+    {
+        // no content dispotion naem
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; x=a", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+        try t.expectError(error.InvalidMultiPartEncoding, r.multiFormData());
+    }
+
+    {
+        // missing name end quote
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; name=\"hello\r\n\r\n", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+        try t.expectError(error.InvalidMultiPartEncoding, r.multiFormData());
+    }
+
+    {
+        // missing missing newline
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; name=hello\r\n", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+        try t.expectError(error.InvalidMultiPartEncoding, r.multiFormData());
+    }
+
+    {
+        // missing missing newline x2
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; name=hello", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+        try t.expectError(error.InvalidMultiPartEncoding, r.multiFormData());
+    }
+}
+
+test "body: multiFormData valid" {
+    defer t.reset();
+
+    {
+        // no body
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=BX1" }, &.{}), .{ .max_multiform_count = 5 });
+        const formData = try r.multiFormData();
+        try t.expectEqual(0, formData.len);
+        try t.expectString("multipart/form-data; boundary=BX1", r.header("content-type").?);
+    }
+
+    {
+        // parses single field
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; name=\"description\"\r\n\r\n", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+
+        const formData = try r.multiFormData();
+        try t.expectString("the-desc", formData.get("description").?.value);
+        try t.expectString("the-desc", formData.get("description").?.value);
+    }
+
+    {
+        // parses single field with filename
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=-90x" }, &.{ "---90x\r\n", "Content-Disposition: form-data; filename=\"file1.zig\"; name=file\r\n\r\n", "some binary data\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+
+        const formData = try r.multiFormData();
+        const field = formData.get("file").?;
+        try t.expectString("some binary data", field.value);
+        try t.expectString("file1.zig", field.filename.?);
+    }
+
+    {
+        // quoted boundary
+        var r = try testParse(buildRequest(&.{ "POST / HTTP/1.0", "Content-Type: multipart/form-data; boundary=\"-90x\"" }, &.{ "---90x\r\n", "Content-Disposition: form-data; name=\"description\"\r\n\r\n", "the-desc\r\n", "---90x--\r\n" }), .{ .max_multiform_count = 5 });
+
+        const formData = try r.multiFormData();
+        const field = formData.get("description").?;
+        try t.expectEqual(null, field.filename);
+        try t.expectString("the-desc", field.value);
+    }
+
+    {
+        // multiple fields
+        var r = try testParse(buildRequest(&.{ "GET /something HTTP/1.1", "Content-Type: multipart/form-data; boundary=----99900AB" }, &.{ "------99900AB\r\n", "content-type: text/plain; charset=utf-8\r\n", "content-disposition: form-data; name=\"fie\\\" \\?l\\d\"\r\n\r\n", "Value - 1\r\n", "------99900AB\r\n", "Content-Disposition: form-data; filename=another.zip; name=field2\r\n\r\n", "Value - 2\r\n", "------99900AB--\r\n" }), .{ .max_multiform_count = 5 });
+
+        const formData = try r.multiFormData();
+        try t.expectEqual(2, formData.len);
+
+        const field1 = formData.get("fie\" ?l\\d").?;
+        try t.expectEqual(null, field1.filename);
+        try t.expectString("Value - 1", field1.value);
+
+        const field2 = formData.get("field2").?;
+        try t.expectString("Value - 2", field2.value);
+        try t.expectString("another.zip", field2.filename.?);
+    }
+
+    {
+        // enforce limit
+        var r = try testParse(buildRequest(&.{ "GET /something HTTP/1.1", "Content-Type: multipart/form-data; boundary=----99900AB" }, &.{ "------99900AB\r\n", "Content-Type: text/plain; charset=utf-8\r\n", "Content-Disposition: form-data; name=\"fie\\\" \\?l\\d\"\r\n\r\n", "Value - 1\r\n", "------99900AB\r\n", "Content-Disposition: form-data; filename=another; name=field2\r\n\r\n", "Value - 2\r\n", "------99900AB--\r\n" }), .{ .max_multiform_count = 1 });
+
+        defer t.reset();
+        const formData = try r.multiFormData();
+        try t.expectEqual(1, formData.len);
+        try t.expectString("Value - 1", formData.get("fie\" ?l\\d").?.value);
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
