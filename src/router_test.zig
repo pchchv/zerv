@@ -6,6 +6,10 @@ const Response = @import("response.zig");
 const Params = @import("params.zig").Params;
 const Router = @import("router.zig").Router;
 
+const FakeMiddlewareImpl = struct {
+    id: u32,
+};
+
 test "route: root" {
     defer t.reset();
 
@@ -182,6 +186,14 @@ test "route: glob" {
         try t.expectEqual(&testRoute4, router.route(zerv.Method.GET, "/users/other/test", &params).?.action);
         try t.expectEqual(0, params.len);
     }
+}
+
+fn fakeMiddleware(impl: *const FakeMiddlewareImpl) zerv.Middleware(void) {
+    return .{
+        .ptr = @constCast(impl),
+        .deinitFn = undefined,
+        .executeFn = undefined,
+    };
 }
 
 fn testDispatcher1(_: zerv.Action(void), _: *Request, _: *Response) anyerror!void {}
