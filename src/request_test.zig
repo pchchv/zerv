@@ -285,3 +285,16 @@ fn testParse(input: []const u8, config: Config) !Request {
     }
     return Request.init(ctx.conn.arena.allocator(), ctx.conn);
 }
+
+fn randomMethod(random: std.Random) []const u8 {
+    return switch (random.uintAtMost(usize, 6)) {
+        0 => "GET",
+        1 => "PUT",
+        2 => "POST",
+        3 => "PATCH",
+        4 => "DELETE",
+        5 => "OPTIONS",
+        6 => "HEAD",
+        else => unreachable,
+    };
+}
