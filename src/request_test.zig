@@ -497,6 +497,51 @@ test "body: multiFormData valid" {
     }
 }
 
+test "body: formData" {
+    defer t.reset();
+    {
+        // too big
+        try expectParseError(error.BodyTooBig, "POST / HTTP/1.0\r\nContent-Length: 22\r\n\r\nname=test", .{ .max_body_size = 21 });
+    }
+
+    {
+        // no body
+        var r = try testParse("POST / HTTP/1.0\r\n\r\nContent-Length: 0\r\n\r\n", .{ .max_body_size = 10 });
+        const formData = try r.formData();
+        try t.expectEqual(null, formData.get("name"));
+        try t.expectEqual(null, formData.get("name"));
+    }
+
+    {
+        // parses formData
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 9\r\n\r\nname=test", .{ .max_form_count = 2 });
+        const formData = try r.formData();
+        try t.expectString("test", formData.get("name").?);
+        try t.expectString("test", formData.get("name").?);
+    }
+
+    {
+        // multiple inputs
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 25\r\n\r\nname=test1&password=test2", .{ .max_form_count = 2 });
+
+        const formData = try r.formData();
+        try t.expectString("test1", formData.get("name").?);
+        try t.expectString("test1", formData.get("name").?);
+
+        try t.expectString("test2", formData.get("password").?);
+        try t.expectString("test2", formData.get("password").?);
+    }
+
+    {
+        // test decoding
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 44\r\n\r\ntest=%21%40%23%24%25%5E%26*%29%28-%3D%2B%7C+", .{ .max_form_count = 2 });
+
+        const formData = try r.formData();
+        try t.expectString("!@#$%^&*)(-=+| ", formData.get("test").?);
+        try t.expectString("!@#$%^&*)(-=+| ", formData.get("test").?);
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
