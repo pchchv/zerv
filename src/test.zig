@@ -3,11 +3,25 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const Conn = @import("worker.zig").HTTPConn;
+
 pub const expectError = std.testing.expectError;
 pub const expectString = std.testing.expectEqualStrings;
 pub const allocator = std.testing.allocator;
 
 pub var arena = std.heap.ArenaAllocator.init(allocator);
+
+pub const Context = struct {
+    fake: bool,
+    conn: *Conn,
+    to_read_pos: usize,
+    closed: bool = false,
+    stream: std.net.Stream, // the stream that the server gets
+    client: std.net.Stream, // the client (e.g. browser stream)
+    to_read: std.ArrayList(u8),
+    arena: *std.heap.ArenaAllocator,
+    _random: ?std.Random.DefaultPrng = null,
+};
 
 pub fn reset() void {
     _ = arena.reset(.free_all);
