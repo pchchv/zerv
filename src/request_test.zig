@@ -226,6 +226,48 @@ test "request: query" {
     }
 }
 
+test "request: body content-length" {
+    defer t.reset();
+    {
+        // too big
+        try expectParseError(error.BodyTooBig, "POST / HTTP/1.0\r\nContent-Length: 10\r\n\r\nOver 9000!", .{ .max_body_size = 9 });
+    }
+
+    {
+        // no body
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\nContent-Length: 0\r\n\r\n", .{ .max_body_size = 10 });
+        try t.expectEqual(null, r.body());
+        try t.expectEqual(null, r.body());
+    }
+
+    {
+        // fits into static buffer
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 10\r\n\r\nOver 9000!", .{});
+        try t.expectString("Over 9000!", r.body().?);
+        try t.expectString("Over 9000!", r.body().?);
+    }
+
+    {
+        // Requires dynamic buffer
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 11\r\n\r\nOver 9001!!", .{ .buffer_size = 40 });
+        try t.expectString("Over 9001!!", r.body().?);
+        try t.expectString("Over 9001!!", r.body().?);
+    }
+}
+
+// the query and body both (can) occupy space in our static buffer
+test "request: query & body" {
+    defer t.reset();
+
+    // query then body
+    var r = try testParse("POST /?search=keemun%20tea HTTP/1.0\r\nContent-Length: 10\r\n\r\nOver 9000!", .{});
+    try t.expectString("keemun tea", (try r.query()).get("search").?);
+    try t.expectString("Over 9000!", r.body().?);
+
+    // results should be cached internally, but let's double check
+    try t.expectString("keemun tea", (try r.query()).get("search").?);
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
