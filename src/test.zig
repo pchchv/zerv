@@ -147,6 +147,21 @@ pub const Context = struct {
         }
         unreachable;
     }
+
+    fn random(self: *Context) std.Random {
+        if (self._random == null) {
+            var seed: u64 = undefined;
+            std.posix.getrandom(std.mem.asBytes(&seed)) catch unreachable;
+            self._random = std.Random.DefaultPrng.init(seed);
+        }
+        return self._random.?.random();
+    }
+
+    pub fn reset(self: Context) void {
+        self.to_read_pos = 0;
+        self.to_read.clearRetainingCapacity();
+        self.conn.reset();
+    }
 };
 
 pub fn reset() void {
