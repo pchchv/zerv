@@ -542,6 +542,83 @@ test "body: formData" {
     }
 }
 
+test "body: json" {
+    defer t.reset();
+    const Tea = struct {
+        type: []const u8,
+    };
+
+    {
+        // too big
+        try expectParseError(error.BodyTooBig, "POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{ .max_body_size = 16 });
+    }
+
+    {
+        // no body
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\nContent-Length: 0\r\n\r\n", .{ .max_body_size = 10 });
+        try t.expectEqual(null, try r.json(Tea));
+        try t.expectEqual(null, try r.json(Tea));
+    }
+
+    {
+        // parses json
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{});
+        try t.expectString("keemun", (try r.json(Tea)).?.type);
+        try t.expectString("keemun", (try r.json(Tea)).?.type);
+    }
+}
+
+test "body: jsonValue" {
+    defer t.reset();
+    {
+        // too big
+        try expectParseError(error.BodyTooBig, "POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{ .max_body_size = 16 });
+    }
+
+    {
+        // no body
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\nContent-Length: 0\r\n\r\n", .{ .max_body_size = 10 });
+        try t.expectEqual(null, try r.jsonValue());
+        try t.expectEqual(null, try r.jsonValue());
+    }
+
+    {
+        // parses json
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{});
+        try t.expectString("keemun", (try r.jsonValue()).?.object.get("type").?.string);
+        try t.expectString("keemun", (try r.jsonValue()).?.object.get("type").?.string);
+    }
+}
+
+test "body: jsonObject" {
+    defer t.reset();
+    {
+        // too big
+        try expectParseError(error.BodyTooBig, "POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{ .max_body_size = 16 });
+    }
+
+    {
+        // no body
+        var r = try testParse("PUT / HTTP/1.0\r\nHost: pondzpondz.com\r\nContent-Length: 0\r\n\r\n", .{ .max_body_size = 10 });
+        try t.expectEqual(null, try r.jsonObject());
+        try t.expectEqual(null, try r.jsonObject());
+    }
+
+    {
+        // not an object
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 7\r\n\r\n\"hello\"", .{});
+        try t.expectEqual(null, try r.jsonObject());
+        try t.expectEqual(null, try r.jsonObject());
+    }
+
+    {
+        // parses json
+        var r = try testParse("POST / HTTP/1.0\r\nContent-Length: 17\r\n\r\n{\"type\":\"keemun\"}", .{});
+        try t.expectString("keemun", (try r.jsonObject()).?.get("type").?.string);
+        try t.expectString("keemun", (try r.jsonObject()).?.get("type").?.string);
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
