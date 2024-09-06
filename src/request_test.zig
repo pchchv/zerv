@@ -162,6 +162,27 @@ test "request: parse protocol" {
     }
 }
 
+test "request: canKeepAlive" {
+    defer t.reset();
+    {
+        // implicitly keepalive for 1.1
+        var r = try testParse("GET / HTTP/1.1\r\n\r\n", .{});
+        try t.expectEqual(true, r.canKeepAlive());
+    }
+
+    {
+        // explicitly keepalive for 1.1
+        var r = try testParse("GET / HTTP/1.1\r\nConnection: keep-alive\r\n\r\n", .{});
+        try t.expectEqual(true, r.canKeepAlive());
+    }
+
+    {
+        // explicitly not keepalive for 1.1
+        var r = try testParse("GET / HTTP/1.1\r\nConnection: close\r\n\r\n", .{});
+        try t.expectEqual(false, r.canKeepAlive());
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
