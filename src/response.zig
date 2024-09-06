@@ -5,8 +5,8 @@ const zerv = @import("zerv.zig");
 const buffer = @import("buffer.zig");
 
 const HTTPConn = @import("worker.zig").HTTPConn;
-const KeyValue = @import("key_value.zig").KeyValue;
 const Config = @import("config.zig").Config.Response;
+const StringKeyValue = @import("key_value.zig").StringKeyValue;
 
 const Stream = std.net.Stream;
 const Allocator = std.mem.Allocator;
@@ -24,7 +24,7 @@ pub const Response = struct {
     status: u16,
     // The response headers.
     // Using res.header(NAME, VALUE) is preferred.
-    headers: KeyValue,
+    headers: StringKeyValue,
     // The content type. Use header("content-type", value) for a content type
     // which isn't available in the zerv.ContentType enum.
     content_type: ?zerv.ContentType,
@@ -234,20 +234,21 @@ pub const Response = struct {
         const headers = &self.headers;
         const names = headers.keys[0..headers.len];
         const values = headers.values[0..headers.len];
-        var len: usize = 0;
+
+        // 200 gives us enough space to fit:
+        // 1 - The status/first line
+        // 2 - The Content-Length header or the Transfer-Encoding header.
+        // 3 - Longest supported built-in content type
+        //     (for a custom content type,
+        //     it would have been set via the res.header(...) call,
+        //     so would be included in `len)
+        var len: usize = 200;
         for (names, values) |name, value| {
             // +4 for the colon, space and trailer
             len += name.len + value.len + 4;
         }
 
-        // +200 gives us enough space to fit:
-        // status/first line
-        // longest supported built-in content type
-        // (for a custom content type,
-        // it would have been set via res.header(...) call,
-        // so would be included in `len)
-        // The Content-Length header or the Transfer-Encoding header.
-        var buf = try self.arena.alloc(u8, len + 200);
+        var buf = try self.arena.alloc(u8, len);
         var pos: usize = "HTTP/1.1 XXX \r\n".len;
         switch (self.status) {
             inline 100...103, 200...208, 226, 300...308, 400...418, 421...426, 428, 429, 431, 451, 500...511 => |status| @memcpy(buf[0..15], std.fmt.comptimePrint("HTTP/1.1 {d} \r\n", .{status})),
@@ -448,10 +449,10 @@ fn writeInt(into: []u8, value: u32) usize {
 // All the upfront memory allocation that is possible to do.
 // Used repeatedly from request to request.
 pub const State = struct {
-    headers: KeyValue,
+    headers: StringKeyValue,
 
     pub fn init(allocator: Allocator, config: *const Config) !Response.State {
-        var headers = try KeyValue.init(allocator, config.max_header_count orelse 16);
+        var headers = try StringKeyValue.init(allocator, config.max_header_count orelse 16);
         errdefer headers.deinit(allocator);
         return .{
             .headers = headers,
