@@ -315,165 +315,85 @@ pub fn Router(comptime Handler: type, comptime Action: type) type {
 }
 
 pub fn Group(comptime Handler: type, comptime Action: type) type {
+    const RC = RouteConfig(Handler, Action);
     return struct {
-        _aa: Allocator,
+        _allocator: Allocator,
         _prefix: []const u8,
         _router: *Router(Handler, Action),
-        _config: Config(Handler, Action),
+        _config: RouteConfig(Handler, Action),
 
         const Self = @This();
 
-        fn init(router: *Router(Handler, Action), prefix: []const u8, config: Config(Handler, Action)) Self {
+        fn init(router: *Router(Handler, Action), prefix: []const u8, config: RC) Self {
             return .{
                 ._prefix = prefix,
                 ._router = router,
                 ._config = config,
-                ._aa = router._arena.allocator(),
+                ._allocator = router._allocator,
             };
         }
 
-        pub fn get(self: *Self, path: []const u8, action: Action) void {
-            self.getC(path, action, self._config);
+        pub fn get(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.get(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryGet(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryGet(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn getC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.getC(self.createPath(path), action, config);
+        pub fn put(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.put(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryPut(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryPut(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn tryGet(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryGetC(path, action, self._config);
+        pub fn post(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.post(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryPost(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryPost(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn tryGetC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryGetC(self.tryCreatePath(path), action, config);
+        pub fn patch(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.patch(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryPatch(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryPatch(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn put(self: *Self, path: []const u8, action: Action) void {
-            self.putC(path, action, self._config);
+        pub fn head(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.head(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryHead(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryHead(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn putC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.putC(self.createPath(path), action, config);
+        pub fn trace(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.trace(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryTrace(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryTrace(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn tryPut(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryPutC(path, action, self._config);
+        pub fn delete(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.delete(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryDelete(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryDelete(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn tryPutC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryPutC(self.tryCreatePath(path), action, config);
+        pub fn options(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.options(self.createPath(path), action, self.mergeConfig(override));
+        }
+        pub fn tryOptions(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryOptions(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
-        pub fn post(self: *Self, path: []const u8, action: Action) void {
-            self.postC(path, action, self._config);
+        pub fn all(self: *Self, path: []const u8, action: Action, override: RC) void {
+            self._router.all(self.createPath(path), action, self.mergeConfig(override));
         }
-
-        pub fn postC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.postC(self.createPath(path), action, config);
-        }
-
-        pub fn tryPost(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryPostC(path, action, self._config);
-        }
-
-        pub fn tryPostC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryPostC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn patch(self: *Self, path: []const u8, action: Action) void {
-            self.patchC(path, action, self._config);
-        }
-
-        pub fn patchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.patchC(self.createPath(path), action, config);
-        }
-
-        pub fn tryPatch(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryPatchC(path, action, self._config);
-        }
-
-        pub fn tryPatchC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryPatchC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn head(self: *Self, path: []const u8, action: Action) void {
-            self.headC(path, action, self._config);
-        }
-
-        pub fn headC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.headC(self.createPath(path), action, config);
-        }
-
-        pub fn tryHead(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryHeadC(path, action, self._config);
-        }
-
-        pub fn tryHeadC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryHeadC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn trace(self: *Self, path: []const u8, action: Action) void {
-            self.patchC(path, action, self._config);
-        }
-
-        pub fn traceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.patchC(self.createPath(path), action, config);
-        }
-
-        pub fn tryTrace(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryTraceC(path, action, self._config);
-        }
-
-        pub fn tryTraceC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryTraceC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn delete(self: *Self, path: []const u8, action: Action) void {
-            self.deleteC(path, action, self._config);
-        }
-
-        pub fn deleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.deleteC(self.createPath(path), action, config);
-        }
-
-        pub fn tryDelete(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryDeleteC(path, action, self._config);
-        }
-
-        pub fn tryDeleteC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryDeleteC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn options(self: *Self, path: []const u8, action: Action) void {
-            self.optionsC(path, action, self._config);
-        }
-
-        pub fn optionsC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.optionsC(self.createPath(path), action, config);
-        }
-
-        pub fn tryOptions(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryOptionsC(path, action, self._config);
-        }
-
-        pub fn tryOptionsC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryOptionsC(self.tryCreatePath(path), action, config);
-        }
-
-        pub fn all(self: *Self, path: []const u8, action: Action) void {
-            self.allC(path, action, self._config);
-        }
-
-        pub fn allC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) void {
-            self._router.allC(self.createPath(path), action, config);
-        }
-
-        pub fn tryAll(self: *Self, path: []const u8, action: Action) !void {
-            return self.tryAllC(path, action, self._config);
-        }
-
-        pub fn tryAllC(self: *Self, path: []const u8, action: Action, config: Config(Handler, Action)) !void {
-            return self._router.tryAllC(self.tryCreatePath(path), action, config);
+        pub fn tryAll(self: *Self, path: []const u8, action: Action, override: RC) !void {
+            return self._router.tryAll(self.tryCreatePath(path), action, self.tryMergeConfig(override));
         }
 
         fn createPath(self: *Self, path: []const u8) []const u8 {
@@ -497,86 +417,26 @@ pub fn Group(comptime Handler: type, comptime Action: type) type {
                 prefix = prefix[0 .. prefix.len - 1];
             }
 
-            const joined = try self._aa.alloc(u8, prefix.len + path.len);
+            const joined = try self._allocator.alloc(u8, prefix.len + path.len);
             @memcpy(joined[0..prefix.len], prefix);
             @memcpy(joined[prefix.len..], path);
             return joined;
         }
+
+        fn mergeConfig(self: *Self, override: RC) RC {
+            return self.tryMergeConfig(override) catch unreachable;
+        }
+
+        fn tryMergeConfig(self: *Self, override: RC) !RC {
+            return .{
+                .data = override.data orelse self._config.data,
+                .handler = override.handler orelse self._config.handler,
+                .dispatcher = override.dispatcher orelse self._config.dispatcher,
+                .middlewares = try self._router.mergeMiddleware(self._config.middlewares orelse &.{}, override),
+                .middleware_strategy = override.middleware_strategy orelse self._config.middleware_strategy,
+            };
+        }
     };
-}
-
-fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const u8, action: A) !void {
-    if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
-        root.action = action;
-        return;
-    }
-
-    var normalized = url;
-    if (normalized[0] == '/') {
-        normalized = normalized[1..];
-    }
-    if (normalized[normalized.len - 1] == '/') {
-        normalized = normalized[0 .. normalized.len - 1];
-    }
-
-    var param_name_collector = std.ArrayList([]const u8).init(allocator);
-    defer param_name_collector.deinit();
-
-    var route_part = root;
-    var it = std.mem.splitScalar(u8, normalized, '/');
-    while (it.next()) |part| {
-        if (part[0] == ':') {
-            try param_name_collector.append(part[1..]);
-            if (route_part.param_part) |child| {
-                route_part = child;
-            } else {
-                const child = try allocator.create(Part(A));
-                child.clear(allocator);
-                route_part.param_part = child;
-                route_part = child;
-            }
-        } else if (part.len == 1 and part[0] == '*') {
-            // if this route_part didn't already have an action,
-            // then this glob also includes it
-            if (route_part.action == null) {
-                route_part.action = action;
-            }
-
-            if (route_part.glob) |child| {
-                route_part = child;
-            } else {
-                const child = try allocator.create(Part(A));
-                child.clear(allocator);
-                route_part.glob = child;
-                route_part = child;
-            }
-        } else {
-            const gop = try route_part.parts.getOrPut(part);
-            if (gop.found_existing) {
-                route_part = gop.value_ptr;
-            } else {
-                route_part = gop.value_ptr;
-                route_part.clear(allocator);
-            }
-        }
-    }
-
-    const param_name_count = param_name_collector.items.len;
-    if (param_name_count > 0) {
-        const param_names = try allocator.alloc([]const u8, param_name_count);
-        for (param_name_collector.items, 0..) |name, i| {
-            param_names[i] = name;
-        }
-        route_part.param_names = param_names;
-    }
-
-    // if the route ended with a '*' (importantly, as opposed to a '*/')
-    // then this is a "glob all" route will.
-    // Important, use "url" and not "normalized" since normalized stripped out the trailing / (if any),
-    // which is important here
-    route_part.glob_all = url[url.len - 1] == '*';
-
-    route_part.action = action;
 }
 
 fn getRoute(comptime A: type, root: *const Part(A), url: []const u8, params: *Params) ?A {
