@@ -579,7 +579,7 @@ fn addRoute(comptime A: type, allocator: Allocator, root: *Part(A), url: []const
     route_part.action = action;
 }
 
-fn getRoute(comptime A: type, root: Part(A), url: []const u8, params: *Params) ?A {
+fn getRoute(comptime A: type, root: *const Part(A), url: []const u8, params: *Params) ?A {
     if (url.len == 0 or (url.len == 1 and url[0] == '/')) {
         return root.action;
     }
@@ -593,10 +593,9 @@ fn getRoute(comptime A: type, root: Part(A), url: []const u8, params: *Params) ?
         normalized = normalized[0 .. normalized.len - 1];
     }
 
-    var r = root;
+    var route_part = root;
+    var glob_all: ?*const Part(A) = null;
     var pos: usize = 0;
-    var route_part = &r;
-    var glob_all: ?*Part(A) = null;
     while (pos < normalized.len) {
         const index = std.mem.indexOfScalarPos(u8, normalized, pos, '/') orelse normalized.len;
         const part = normalized[pos..index];
