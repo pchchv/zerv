@@ -203,6 +203,39 @@ pub const Context = struct {
 
         return fr;
     }
+
+    pub fn expect(self: Context, expected: []const u8) !void {
+        var pos: usize = 0;
+        var buf = try allocator.alloc(u8, expected.len);
+        defer allocator.free(buf);
+        while (pos < buf.len) {
+            const n = try self.client.read(buf[pos..]);
+            if (n == 0) break;
+            pos += n;
+        }
+        try expectString(expected, buf);
+
+        // should have no extra data let's check,
+        // with a shor timeout, which could let things slip,
+        // but else slow down fuzz tests too much
+        std.posix.setsockopt(self.client.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &std.mem.toBytes(std.posix.timeval{
+            .sec = 0,
+            .usec = 1_000,
+        })) catch unreachable;
+
+        const n: usize = self.client.read(buf[0..]) catch |err| blk: {
+            switch (err) {
+                error.WouldBlock => break :blk 0,
+                else => @panic(@errorName(err)),
+            }
+        };
+        try expectEqual(0, n);
+
+        std.posix.setsockopt(self.client.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &std.mem.toBytes(std.posix.timeval{
+            .sec = 0,
+            .usec = 20_000,
+        })) catch unreachable;
+    }
 };
 
 pub fn reset() void {
