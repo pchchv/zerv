@@ -25,6 +25,32 @@ pub const Context = struct {
     arena: *std.heap.ArenaAllocator,
     _random: ?std.Random.DefaultPrng = null,
 
+    // Sometimes uses a Fake reader when needed to simulate the boundary-less nature of TCP,
+    // that is, where a read() might read only a few of the message bytes
+    // (because TCP has no concept of a message).
+    pub const FakeReader = struct {
+        pos: usize,
+        buf: []const u8,
+        random: std.Random,
+
+        pub fn read(
+            self: *FakeReader,
+            buf: []u8,
+        ) !usize {
+            const data = self.buf[self.pos..];
+
+            if (data.len == 0 or buf.len == 0) {
+                return 0;
+            }
+
+            // randomly fragment the data
+            const to_read = self.random.intRangeAtMost(usize, 1, @min(data.len, buf.len));
+            @memcpy(buf[0..to_read], data[0..to_read]);
+            self.pos += to_read;
+            return to_read;
+        }
+    };
+
     pub fn allocInit(ctx_allocator: Allocator, config_: zerv.Config) Context {
         var pair: [2]c_int = undefined;
         const rc = std.c.socketpair(std.posix.AF.LOCAL, std.posix.SOCK.STREAM, 0, &pair);
@@ -161,6 +187,21 @@ pub const Context = struct {
         self.to_read_pos = 0;
         self.to_read.clearRetainingCapacity();
         self.conn.reset();
+    }
+
+    pub fn fakeReader(self: *Context) FakeReader {
+        std.debug.assert(self.fake);
+
+        const fr = .{
+            .pos = self.to_read_pos,
+            .buf = self.to_read.items,
+            .random = self.random(),
+        };
+
+        self.to_read_pos = 0;
+        self.to_read.clearRetainingCapacity();
+
+        return fr;
     }
 };
 
