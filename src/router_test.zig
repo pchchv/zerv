@@ -196,6 +196,15 @@ fn fakeMiddleware(impl: *const FakeMiddlewareImpl) zerv.Middleware(void) {
     };
 }
 
+fn assertMiddlewares(router: anytype, params: *Params, path: []const u8, expected: []const u32) !void {
+    const middlewares = router.route(zerv.Method.GET, path, params).?.middlewares;
+    try t.expectEqual(expected.len, middlewares.len);
+    for (expected, middlewares) |e, m| {
+        const impl: *const FakeMiddlewareImpl = @ptrCast(@alignCast(m.ptr));
+        try t.expectEqual(e, impl.id);
+    }
+}
+
 fn testDispatcher1(_: zerv.Action(void), _: *Request, _: *Response) anyerror!void {}
 fn testRoute1(_: *Request, _: *Response) anyerror!void {}
 fn testRoute2(_: *Request, _: *Response) anyerror!void {}
