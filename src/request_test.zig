@@ -183,6 +183,49 @@ test "request: canKeepAlive" {
     }
 }
 
+test "request: query" {
+    defer t.reset();
+    {
+        // none
+        var r = try testParse("PUT / HTTP/1.1\r\n\r\n", .{});
+        try t.expectEqual(0, (try r.query()).len);
+    }
+
+    {
+        // none with path
+        var r = try testParse("PUT /why/would/this/matter HTTP/1.1\r\n\r\n", .{});
+        try t.expectEqual(0, (try r.query()).len);
+    }
+
+    {
+        // value-less
+        var r = try testParse("PUT /?a HTTP/1.1\r\n\r\n", .{});
+        const query = try r.query();
+        try t.expectEqual(1, query.len);
+        try t.expectString("", query.get("a").?);
+        try t.expectEqual(null, query.get("b"));
+    }
+
+    {
+        // single
+        var r = try testParse("PUT /?a=1 HTTP/1.1\r\n\r\n", .{});
+        const query = try r.query();
+        try t.expectEqual(1, query.len);
+        try t.expectString("1", query.get("a").?);
+        try t.expectEqual(null, query.get("b"));
+    }
+
+    {
+        // multiple
+        var r = try testParse("PUT /path?Teg=Tea&it%20%20IS=over%209000%24&ha%09ck HTTP/1.1\r\n\r\n", .{});
+        const query = try r.query();
+        try t.expectEqual(3, query.len);
+        try t.expectString("Tea", query.get("Teg").?);
+        try t.expectString("over 9000$", query.get("it  IS").?);
+        try t.expectString("", query.get("ha\tck").?);
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
