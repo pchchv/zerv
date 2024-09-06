@@ -415,3 +415,33 @@ fn randomMethod(random: std.Random) []const u8 {
         else => unreachable,
     };
 }
+
+fn buildRequest(header: []const []const u8, body: []const []const u8) []const u8 {
+    var header_len: usize = 0;
+    for (header) |h| {
+        header_len += h.len;
+    }
+
+    var body_len: usize = 0;
+    for (body) |b| {
+        body_len += b.len;
+    }
+
+    var arr = std.ArrayList(u8).init(t.arena.allocator());
+    // 100 for the Content-Length that we'll add and all the \r\n
+    arr.ensureTotalCapacity(header_len + body_len + 100) catch unreachable;
+
+    for (header) |h| {
+        arr.appendSlice(h) catch unreachable;
+        arr.appendSlice("\r\n") catch unreachable;
+    }
+    arr.appendSlice("Content-Length: ") catch unreachable;
+    std.fmt.formatInt(body_len, 10, .lower, .{}, arr.writer()) catch unreachable;
+    arr.appendSlice("\r\n\r\n") catch unreachable;
+
+    for (body) |b| {
+        arr.appendSlice(b) catch unreachable;
+    }
+
+    return arr.items;
+}
