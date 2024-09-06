@@ -7,6 +7,11 @@ const Params = @import("params.zig").Params;
 const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
+pub const MiddlewareStrategy = enum {
+    append,
+    replace,
+};
+
 fn RouteConfig(comptime Handler: type, comptime Action: type) type {
     const Dispatcher = zerv.Dispatcher(Handler, Action);
     return struct {
