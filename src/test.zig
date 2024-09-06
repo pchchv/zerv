@@ -236,6 +236,14 @@ pub const Context = struct {
             .usec = 20_000,
         })) catch unreachable;
     }
+
+    pub fn request(self: Context) zerv.Request {
+        return zerv.Request.init(self.conn.req_arena.allocator(), self.conn);
+    }
+
+    pub fn response(self: Context) zerv.Response {
+        return zerv.Response.init(self.conn.req_arena.allocator(), self.conn);
+    }
 };
 
 pub fn reset() void {
