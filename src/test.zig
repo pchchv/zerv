@@ -115,6 +115,38 @@ pub const Context = struct {
         self.arena.deinit();
         ctx_allocator.destroy(self.arena);
     }
+
+    // force the server side socket to be closed,
+    // which helps reading-test know that there's no more data.
+    pub fn close(self: *Context) void {
+        if (self.closed == false) {
+            self.closed = true;
+            self.stream.close();
+        }
+    }
+
+    pub fn write(self: *Context, data: []const u8) void {
+        if (self.fake) {
+            self.to_read.appendSlice(data) catch unreachable;
+        } else {
+            self.client.writeAll(data) catch unreachable;
+        }
+    }
+
+    pub fn read(self: Context, a: Allocator) !std.ArrayList(u8) {
+        var buf: [1024]u8 = undefined;
+        var arr = std.ArrayList(u8).init(a);
+
+        while (true) {
+            const n = self.client.read(&buf) catch |err| switch (err) {
+                error.WouldBlock => return arr,
+                else => return err,
+            };
+            if (n == 0) return arr;
+            try arr.appendSlice(buf[0..n]);
+        }
+        unreachable;
+    }
 };
 
 pub fn reset() void {
