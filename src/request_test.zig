@@ -268,6 +268,123 @@ test "request: query & body" {
     try t.expectString("keemun tea", (try r.query()).get("search").?);
 }
 
+test "request: fuzz" {
+    // Have a bunch of data to allocate for testing,
+    // like header names and values.
+    // Easier to use this arena and reset it after each test run.
+    const aa = t.arena.allocator();
+    defer t.reset();
+
+    var r = t.getRandom();
+    const random = r.random();
+    for (0..1000) |_| {
+        // important to test with different buffer sizes, since there's a lot of
+        // special handling for different cases (e.g the buffer is full and has
+        // some of the body in it, so we need to copy that to a dynamically allocated
+        // buffer)
+        const buffer_size = random.uintAtMost(u16, 1024) + 1024;
+
+        var ctx = t.Context.init(.{
+            .request = .{ .buffer_size = buffer_size },
+        });
+
+        // enable fake mode, we don't go through a real socket, instead we go
+        // through a fake one, that can simulate having data spread across multiple
+        // calls to read()
+        ctx.fake = true;
+        defer ctx.deinit();
+
+        // how many requests should we make on this 1 individual socket (simulating
+        // keepalive AND the request pool)
+        const number_of_requests = random.uintAtMost(u8, 10) + 1;
+
+        for (0..number_of_requests) |_| {
+            defer ctx.conn.keepalive(4096);
+            const method = randomMethod(random);
+            const url = t.randomString(random, aa, 20);
+
+            ctx.write(method);
+            ctx.write(" /");
+            ctx.write(url);
+
+            const number_of_qs = random.uintAtMost(u8, 4);
+            if (number_of_qs != 0) {
+                ctx.write("?");
+            }
+
+            var query = std.StringHashMap([]const u8).init(aa);
+            for (0..number_of_qs) |_| {
+                const key = t.randomString(random, aa, 20);
+                const value = t.randomString(random, aa, 20);
+                if (!query.contains(key)) {
+                    query.put(key, value) catch unreachable;
+                    ctx.write(key);
+                    ctx.write("=");
+                    ctx.write(value);
+                    ctx.write("&");
+                }
+            }
+
+            ctx.write(" HTTP/1.1\r\n");
+
+            var headers = std.StringHashMap([]const u8).init(aa);
+            for (0..random.uintAtMost(u8, 4)) |_| {
+                const name = t.randomString(random, aa, 20);
+                const value = t.randomString(random, aa, 20);
+                if (!headers.contains(name)) {
+                    headers.put(name, value) catch unreachable;
+                    ctx.write(name);
+                    ctx.write(": ");
+                    ctx.write(value);
+                    ctx.write("\r\n");
+                }
+            }
+
+            var body: ?[]u8 = null;
+            if (random.uintAtMost(u8, 4) == 0) {
+                ctx.write("\r\n"); // no body
+            } else {
+                body = t.randomString(random, aa, 8000);
+                const cl = std.fmt.allocPrint(aa, "{d}", .{body.?.len}) catch unreachable;
+                headers.put("content-length", cl) catch unreachable;
+                ctx.write("content-length: ");
+                ctx.write(cl);
+                ctx.write("\r\n\r\n");
+                ctx.write(body.?);
+            }
+
+            var conn = ctx.conn;
+            var fake_reader = ctx.fakeReader();
+            while (true) {
+                const done = try conn.req_state.parse(&fake_reader);
+                if (done) break;
+            }
+
+            var request = Request.init(conn.arena.allocator(), conn);
+
+            // assert the headers
+            var it = headers.iterator();
+            while (it.next()) |entry| {
+                try t.expectString(entry.value_ptr.*, request.header(entry.key_ptr.*).?);
+            }
+
+            // assert the querystring
+            var actualQuery = request.query() catch unreachable;
+            it = query.iterator();
+            while (it.next()) |entry| {
+                try t.expectString(entry.value_ptr.*, actualQuery.get(entry.key_ptr.*).?);
+            }
+
+            const actual_body = request.body();
+            if (body) |b| {
+                try t.expectString(b, actual_body.?);
+            } else {
+                try t.expectEqual(null, actual_body);
+            }
+        }
+    }
+}
+
 fn expectParseError(expected: anyerror, input: []const u8, config: Config) !void {
     var ctx = t.Context.init(.{ .request = config });
     defer ctx.deinit();
