@@ -87,5 +87,39 @@ pub fn ThreadPool(comptime F: anytype) type {
 
             return thread_pool;
         }
+
+        pub fn stop(self: *Self) void {
+            self.mutex.lock();
+            self.stopped = true;
+            self.mutex.unlock();
+
+            self.read_cond.broadcast();
+            for (self.threads) |thrd| {
+                thrd.join();
+            }
+        }
+
+        pub fn empty(self: *Self) bool {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            return self.head == self.tail;
+        }
+
+        pub fn spawn(self: *Self, args: Args) void {
+            const queue = self.queue;
+            const queue_end = queue.len - 1;
+
+            self.mutex.lock();
+            while (self.isFull(queue_end)) {
+                self.write_cond.wait(&self.mutex);
+            }
+
+            const head = self.head;
+            queue[head] = args;
+            self.head = if (head == queue_end) 0 else head + 1;
+            self.mutex.unlock();
+
+            self.read_cond.signal();
+        }
     };
 }
