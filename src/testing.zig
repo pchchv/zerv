@@ -102,6 +102,41 @@ pub const Testing = struct {
         p.values[p.len] = value;
         p.len += 1;
     }
+
+    pub fn header(self: *Testing, name: []const u8, value: []const u8) void {
+        const lower = self.arena.alloc(u8, name.len) catch unreachable;
+        _ = std.ascii.lowerString(lower, name);
+        self.req.headers.add(lower, value);
+    }
+
+    pub fn body(self: *Testing, bd: []const u8) void {
+        const mutable = self.arena.dupe(u8, bd) catch unreachable;
+        self.req.body_buffer = .{ .type = .static, .data = mutable };
+        self.req.body_len = bd.len;
+    }
+
+    pub fn form(self: *Testing, data: anytype) void {
+        var arr = ArrayList(u8).init(self.arena);
+
+        inline for (@typeInfo(@TypeOf(data)).@"struct".fields) |field| {
+            const name = escapeString(self.arena, field.name) catch unreachable;
+            const value = escapeString(self.arena, @field(data, field.name)) catch unreachable;
+            arr.appendSlice(name) catch unreachable;
+            arr.append('=') catch unreachable;
+            arr.appendSlice(value) catch unreachable;
+            arr.append('&') catch unreachable;
+        }
+
+        const items = arr.items;
+        if (items.len == 0) {
+            return;
+        }
+
+        // strip out the last &
+        const bd = items[0 .. items.len - 1];
+        self.req.body_buffer = .{ .type = .static, .data = bd };
+        self.req.body_len = bd.len;
+    }
 };
 
 const JsonComparer = struct {
