@@ -13,9 +13,8 @@ const BufferPool = @import("buffer.zig").Pool;
 
 const net = std.net;
 const posix = std.posix;
-const log = std.log.scoped(.zerv);
-
 const Thread = std.Thread;
+const log = std.log.scoped(.zerv);
 const Allocator = std.mem.Allocator;
 
 const MAX_TIMEOUT = 2_147_483_647;
@@ -338,7 +337,6 @@ const KQueue = struct {
     change_buffer: [32]Kevent,
     event_list: [128]Kevent,
     const Kevent = posix.Kevent;
-
     const Iterator = struct {
         index: usize,
         events: []Kevent,
