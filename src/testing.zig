@@ -137,6 +137,46 @@ pub const Testing = struct {
         self.req.body_buffer = .{ .type = .static, .data = bd };
         self.req.body_len = bd.len;
     }
+
+    pub fn expectGzip(self: *Testing) !void {
+        var res = try self.parseResponse();
+        if (res.headers.get("Content-Encoding")) |ce| {
+            try t.expectString("gzip", ce);
+        } else {
+            return error.NoContentEncoding;
+        }
+
+        var fbs = std.io.fixedBufferStream(res.body);
+        var uncompressed = std.ArrayList(u8).init(self.arena);
+        try std.compress.gzip.decompress(fbs.reader(), uncompressed.writer());
+
+        res.body = uncompressed.items;
+        self.parsed_response = res;
+    }
+
+    pub fn expectStatus(self: *const Testing, expected: u16) !void {
+        try t.expectEqual(expected, self.res.status);
+    }
+
+    pub fn expectBody(self: *Testing, expected: []const u8) !void {
+        const pr = try self.parseResponse();
+        try t.expectString(expected, pr.body);
+    }
+
+    pub fn expectJson(self: *Testing, expected: anytype) !void {
+        const pr = try self.parseResponse();
+        try pr.expectJson(expected);
+    }
+
+    pub fn expectHeader(self: *Testing, name: []const u8, expected: ?[]const u8) !void {
+        const pr = try self.parseResponse();
+        return pr.expectHeader(name, expected);
+    }
+
+    pub fn expectHeaderCount(self: *Testing, expected: u32) !void {
+        const pr = try self.parseResponse();
+        try t.expectEqual(expected, pr.headers.count());
+    }
 };
 
 const JsonComparer = struct {
