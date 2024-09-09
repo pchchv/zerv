@@ -24,6 +24,36 @@ pub const Testing = struct {
         body: []const u8,
         allocator: std.mem.Allocator,
         headers: std.StringHashMap([]const u8),
+
+        pub fn expectHeader(self: Response, name: []const u8, expected: ?[]const u8) !void {
+            if (expected) |e| {
+                try t.expectString(e, self.headers.get(name).?);
+            } else {
+                try t.expectEqual(null, self.headers.get(name));
+            }
+        }
+
+        pub fn expectJson(self: Response, expected: anytype) !void {
+            if (self.headers.get("Content-Type")) |ct| {
+                try t.expectString("application/json", ct);
+            } else {
+                return error.NoContentTypeHeader;
+            }
+
+            var jc = JsonComparer.init(t.allocator);
+            defer jc.deinit();
+            const diffs = try jc.compare(expected, self.body);
+            if (diffs.items.len == 0) {
+                return;
+            }
+
+            for (diffs.items, 0..) |diff, i| {
+                std.debug.print("\n==Difference #{d}==\n", .{i + 1});
+                std.debug.print("  {s}: {s}\n  Left: {s}\n  Right: {s}\n", .{ diff.path, diff.err, diff.a, diff.b });
+                std.debug.print("  Actual:\n    {s}\n", .{self.body});
+            }
+            return error.JsonNotEqual;
+        }
     };
 };
 
