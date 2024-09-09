@@ -137,6 +137,13 @@ const JsonComparer = struct {
         }
     }
 
+    fn stringify(self: *JsonComparer, value: anytype) ![]const u8 {
+        var arr = ArrayList(u8).init(self._arena.allocator());
+        try std.json.stringify(value, .{}, arr.writer());
+        return arr.items;
+    }
+};
+
 fn isString(comptime T: type) bool {
     switch (@typeInfo(T)) {
         .pointer => |ptr| switch (ptr.size) {
