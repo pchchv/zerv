@@ -765,6 +765,11 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
                                 }
                             },
                             .websocket => |ptr| {
+                                if (comptime WSH == zerv.DummyWebsocketHandler) {
+                                    std.debug.print("Your zerv handler must have a `WebsocketHandler` declaration. This must be the same type passed to `zerv.upgradeWebsocket`. Closing the connection.\n", .{});
+                                    self.manager.close(conn);
+                                    continue;
+                                }
                                 const hc: *ws.HandlerConn(WSH) = @ptrCast(@alignCast(ptr));
                                 self.manager.upgrade(conn, hc);
                                 self.loop.monitorRead(hc.socket, @intFromPtr(conn), true) catch {
@@ -795,7 +800,7 @@ pub fn NonBlocking(comptime S: type, comptime WSH: type) type {
             switch (conn.protocol) {
                 .http => |http_conn| {
                     const stream = http_conn.stream;
-                    const done = http_conn.req_state.parse(stream) catch |err| {
+                    const done = http_conn.req_state.parse(http_conn.req_arena.allocator(), stream) catch |err| {
                         requestParseError(http_conn, err) catch {};
                         http_conn.handover = .close;
                         self.signal.write(@intFromPtr(conn)) catch @panic("todo");
