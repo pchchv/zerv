@@ -121,5 +121,40 @@ pub fn ThreadPool(comptime F: anytype) type {
 
             self.read_cond.signal();
         }
+
+        // Having a reusable buffer for each thread is the most efficient way of dynamic allocation.
+        // It is later combined with the FallbackAllocator.
+        // The main problem is that some data should become obsolete in the worker thread (in non-blocking mode),
+        // but that's not something to worry about in this case.
+        // As far as the worker thread is concerned,
+        // it has a piece of memory (buffer) that it will pass to the callback function to do with as it sees fit.
+        fn worker(self: *Self, buffer: []u8) void {
+            const queue = self.queue;
+            const queue_end = queue.len - 1;
+
+            while (true) {
+                self.mutex.lock();
+                while (self.tail == self.head) {
+                    if (self.stopped) {
+                        self.mutex.unlock();
+                        return;
+                    }
+                    self.read_cond.wait(&self.mutex);
+                }
+                const tail = self.tail;
+                const args = queue[tail];
+                self.tail = if (tail == queue_end) 0 else tail + 1;
+                self.mutex.unlock();
+                self.write_cond.signal();
+
+                // convert Args to FullArgs, i.e. inject buffer as the last argument
+                var full_args: FullArgs = undefined;
+                full_args[ARG_COUNT] = buffer;
+                inline for (0..ARG_COUNT) |i| {
+                    full_args[i] = args[i];
+                }
+                @call(.auto, F, full_args);
+            }
+        }
     };
 }
