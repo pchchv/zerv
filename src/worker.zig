@@ -51,7 +51,11 @@ pub const HTTPConn = struct {
     // point where the request is parsed to after the response is sent, can be
     // allocated in this arena. An allocator for this arena is available to the
     // application as req.arena and res.arena.
-    arena: *std.heap.ArenaAllocator,
+    req_arena: std.heap.ArenaAllocator,
+    // Memory that is needed for the lifetime of the connection. In most cases
+    // the connection outlives the request for two reasons: keepalive and the
+    // fact that we keepa pool of connections.
+    conn_arena: *std.heap.ArenaAllocator,
     // This is our ws.Worker(WSH) but the type is erased so that Conn isn't
     // a generic. We don't want Conn to be a generic, because we don't want Response
     // to be generics since that would make using the library unecessarily complex
@@ -77,19 +81,19 @@ pub const HTTPConn = struct {
     };
 
     fn init(allocator: Allocator, buffer_pool: *BufferPool, ws_worker: *anyopaque, config: *const Config) !HTTPConn {
-        const arena = try allocator.create(std.heap.ArenaAllocator);
-        errdefer allocator.destroy(arena);
+        const conn_arena = try allocator.create(std.heap.ArenaAllocator);
+        errdefer allocator.destroy(conn_arena);
 
-        arena.* = std.heap.ArenaAllocator.init(allocator);
+        conn_arena.* = std.heap.ArenaAllocator.init(allocator);
+        errdefer conn_arena.deinit();
 
-        var req_state = try Request.State.init(allocator, arena, buffer_pool, &config.request);
-        errdefer req_state.deinit(allocator);
+        const req_state = try Request.State.init(conn_arena.allocator(), buffer_pool, &config.request);
+        const res_state = try Response.State.init(conn_arena.allocator(), &config.response);
 
-        var res_state = try Response.State.init(allocator, &config.response);
-        errdefer res_state.deinit(allocator);
+        var req_arena = std.heap.ArenaAllocator.init(allocator);
+        errdefer req_arena.deinit();
 
         return .{
-            .arena = arena,
             .close = false,
             .state = .active,
             .handover = .close,
@@ -97,6 +101,8 @@ pub const HTTPConn = struct {
             .address = undefined,
             .req_state = req_state,
             .res_state = res_state,
+            .req_arena = req_arena,
+            .conn_arena = conn_arena,
             .timeout = 0,
             .request_count = 0,
             .ws_worker = ws_worker,
@@ -104,16 +110,16 @@ pub const HTTPConn = struct {
     }
 
     pub fn deinit(self: *HTTPConn, allocator: Allocator) void {
-        self.arena.deinit();
-        allocator.destroy(self.arena);
-        self.req_state.deinit(allocator);
-        self.res_state.deinit(allocator);
+        self.req_state.deinit();
+        self.req_arena.deinit();
+        self.conn_arena.deinit();
+        allocator.destroy(self.conn_arena);
     }
 
     pub fn keepalive(self: *HTTPConn, retain_allocated_bytes: usize) void {
         self.req_state.reset();
         self.res_state.reset();
-        _ = self.arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
+        _ = self.req_arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
     }
 
     // reset getting put back into the pool.
@@ -125,7 +131,7 @@ pub const HTTPConn = struct {
         self.request_count = 0;
         self.req_state.reset();
         self.res_state.reset();
-        _ = self.arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
+        _ = self.req_arena.reset(.{ .retain_with_limit = retain_allocated_bytes });
     }
 };
 
