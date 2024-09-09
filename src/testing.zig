@@ -142,6 +142,20 @@ const JsonComparer = struct {
         try std.json.stringify(value, .{}, arr.writer());
         return arr.items;
     }
+
+    fn diff(self: *JsonComparer, err: []const u8, path: *ArrayList([]const u8), a_rep: []const u8, b_rep: []const u8) Diff {
+        const full_path = std.mem.join(self._arena.allocator(), ".", path.items) catch unreachable;
+        return .{
+            .a = a_rep,
+            .b = b_rep,
+            .err = err,
+            .path = full_path,
+        };
+    }
+
+    fn format(self: *JsonComparer, value: anytype) []const u8 {
+        return std.fmt.allocPrint(self._arena.allocator(), "{}", .{value}) catch unreachable;
+    }
 };
 
 fn isString(comptime T: type) bool {
