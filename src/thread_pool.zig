@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Thread = std.Thread;
+const Allocator = std.mem.Allocator;
 
 pub const Opts = struct {
     count: u32,
@@ -51,5 +52,40 @@ pub fn ThreadPool(comptime F: anytype) type {
         write_cond: Thread.Condition,
 
         const Self = @This();
+
+        // expect allocator to be an Arena
+        pub fn init(allocator: Allocator, opts: Opts) !*Self {
+            const queue = try allocator.alloc(Args, opts.backlog);
+            const threads = try allocator.alloc(Thread, opts.count);
+            const thread_pool = try allocator.create(Self);
+
+            thread_pool.* = .{
+                .tail = 0,
+                .head = 0,
+                .mutex = .{},
+                .stopped = false,
+                .queue = queue,
+                .read_cond = .{},
+                .write_cond = .{},
+                .threads = threads,
+            };
+
+            var started: usize = 0;
+            errdefer {
+                thread_pool.stopped = true;
+                thread_pool.read_cond.broadcast();
+                for (0..started) |i| {
+                    threads[i].join();
+                }
+            }
+
+            for (0..threads.len) |i| {
+                const buffer = try allocator.alloc(u8, opts.buffer_size);
+                threads[i] = try Thread.spawn(.{}, Self.worker, .{ thread_pool, buffer });
+                started += 1;
+            }
+
+            return thread_pool;
+        }
     };
 }
