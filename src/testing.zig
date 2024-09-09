@@ -14,4 +14,12 @@ pub const Testing = struct {
     res: *zerv.Response,
     arena: std.mem.Allocator,
     parsed_response: ?Response = null,
+
+    pub const Response = struct {
+        status: u16,
+        raw: []const u8,
+        body: []const u8,
+        allocator: std.mem.Allocator,
+        headers: std.StringHashMap([]const u8),
+    };
 };
