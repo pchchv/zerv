@@ -463,3 +463,35 @@ pub fn parseWithAllocator(allocator: Allocator, data: []u8) !Testing.Response {
 pub fn parse(data: []u8) !Testing.Response {
     return parseWithAllocator(t.allocator, data);
 }
+
+pub fn init(config: zerv.Config) Testing {
+    const ctx = t.Context.init(config);
+    var conn = ctx.conn;
+
+    // Parse a basic request.
+    // This will put conn.req_state into a valid state for creating a request.
+    // Application code can modify the request directly thereafter to change whatever properties they want.
+    var base_request = std.io.fixedBufferStream("GET / HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    while (true) {
+        const done = conn.req_state.parse(conn.req_arena.allocator(), &base_request) catch unreachable;
+        if (done) {
+            break;
+        }
+    }
+
+    const aa = conn.req_arena.allocator();
+
+    const req = aa.create(zerv.Request) catch unreachable;
+    req.* = ctx.request();
+
+    const res = aa.create(zerv.Response) catch unreachable;
+    res.* = ctx.response();
+
+    return Testing{
+        ._ctx = ctx,
+        .req = req,
+        .res = res,
+        .arena = aa,
+        .conn = ctx.conn,
+    };
+}
