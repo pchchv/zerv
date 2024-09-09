@@ -54,6 +54,11 @@ pub const Testing = struct {
             }
             return error.JsonNotEqual;
         }
+
+        pub fn deinit(self: *Response) void {
+            self.headers.deinit();
+            self.allocator.free(self.raw);
+        }
     };
 };
 
