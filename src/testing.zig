@@ -6,6 +6,7 @@ const t = @import("test.zig");
 const zerv = @import("zerv.zig");
 
 const Conn = @import("worker.zig").HTTPConn;
+const Allocator = std.mem.Allocator;
 
 pub const Testing = struct {
     _ctx: t.Context,
@@ -33,4 +34,14 @@ const JsonComparer = struct {
         a: []const u8,
         b: []const u8,
     };
+
+    fn init(allocator: Allocator) JsonComparer {
+        return .{
+            ._arena = std.heap.ArenaAllocator.init(allocator),
+        };
+    }
+
+    fn deinit(self: JsonComparer) void {
+        self._arena.deinit();
+    }
 };
