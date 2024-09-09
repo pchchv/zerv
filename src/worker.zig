@@ -1321,11 +1321,11 @@ fn serverError(conn: *HTTPConn, comptime log_fmt: []const u8, err: anyerror) !vo
     return writeError(conn, 500, "Internal Server Error");
 }
 
-// Handles parsing errors.
-// If this function returns true, it means that Conn has a write-ready body.
-// In this case, the worker (blocking or non-blocking) will want to send a response.
-// If false is returned, the worker probably wants to close the connection.
-// This function ensures that both blocking and non-blocking workers handle these errors with the same response.
+/// Handles parsing errors.
+/// If this function returns true, it means that Conn has a write-ready body.
+/// In this case, the worker (blocking or non-blocking) will want to send a response.
+/// If false is returned, the worker probably wants to close the connection.
+/// This function ensures that both blocking and non-blocking workers handle these errors with the same response.
 fn requestParseError(conn: *HTTPConn, err: anyerror) !void {
     switch (err) {
         error.HeaderTooBig => {
