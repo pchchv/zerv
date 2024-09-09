@@ -189,6 +189,16 @@ pub const Testing = struct {
         self.parsed_response = pr;
         return pr;
     }
+
+    pub fn getJson(self: *Testing) !std.json.Value {
+        const pr = try self.parseResponse();
+        return try std.json.parseFromSliceLeaky(std.json.Value, self.arena, pr.body, .{});
+    }
+
+    pub fn getBody(self: *Testing) ![]const u8 {
+        const pr = try self.parseResponse();
+        return pr.body;
+    }
 };
 
 const JsonComparer = struct {
