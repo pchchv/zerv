@@ -2,6 +2,12 @@ const std = @import("std");
 
 const Thread = std.Thread;
 
+pub const Opts = struct {
+    count: u32,
+    backlog: u32,
+    buffer_size: usize,
+};
+
 pub fn ThreadPool(comptime F: anytype) type {
     // When the worker thread calls F, it'll inject its static buffer.
     // So F would be: handle(server: *Server, conn: *Conn, buf: []u8)
