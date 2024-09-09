@@ -44,4 +44,18 @@ const JsonComparer = struct {
     fn deinit(self: JsonComparer) void {
         self._arena.deinit();
     }
-};
+
+fn isString(comptime T: type) bool {
+    switch (@typeInfo(T)) {
+        .pointer => |ptr| switch (ptr.size) {
+            .Slice => return ptr.child == u8,
+            .One => switch (@typeInfo(ptr.child)) {
+                .array => |arr| return arr.child == u8,
+                else => return false,
+            },
+            else => return false,
+        },
+        .array => return false,
+        else => return false,
+    }
+}
