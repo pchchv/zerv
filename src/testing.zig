@@ -356,3 +356,84 @@ fn escapeString(allocator: Allocator, input: []const u8) ![]const u8 {
     }
     return output;
 }
+
+fn decodeChunkedEncoding(full_dest: []u8, full_src: []u8) usize {
+    var src = full_src;
+    var dest = full_dest;
+    var length: usize = 0;
+    const clean_trailer = std.mem.endsWith(u8, src, "\r\n0\r\n\r\n");
+
+    while (true) {
+        const nl = std.mem.indexOfScalar(u8, src, '\r') orelse unreachable;
+        const chunk_length = std.fmt.parseInt(u32, src[0..nl], 16) catch unreachable;
+        if (chunk_length == 0) {
+            if (src[1] == '\r' and src[2] == '\n' and src[3] == '\r' and src[4] == '\n') {
+                break;
+            }
+            continue;
+        }
+
+        @memcpy(dest[0..chunk_length], src[nl + 2 .. nl + 2 + chunk_length]);
+        length += chunk_length;
+
+        dest = dest[chunk_length..];
+        const next_start = nl + 4 + chunk_length;
+
+        if (src.len < next_start and clean_trailer == false) {
+            // This should not happen.
+            // When zerv.zig writes a chunked response,
+            // the trailing empty chunk only gets written deep in the
+            // library. When calling a handler directly from a test, that part
+            // of the library isn't executed, and thus an invalid chunked encoded
+            // body is written (it's missing that empty trailing chunk).
+            break;
+        }
+        src = src[next_start..];
+    }
+    return length;
+}
+
+pub fn parseWithAllocator(allocator: Allocator, data: []u8) !Testing.Response {
+    // data won't outlive this function,
+    // want our Response to take ownership of the full body,
+    // since it needs to reference parts of it.
+    const raw = allocator.dupe(u8, data) catch unreachable;
+
+    var status: u16 = 0;
+    var header_length: usize = 0;
+    var headers = std.StringHashMap([]const u8).init(allocator);
+
+    var it = std.mem.splitSequence(u8, raw, "\r\n");
+    if (it.next()) |line| {
+        header_length = line.len + 2;
+        status = try std.fmt.parseInt(u16, line[9..12], 10);
+    } else {
+        return error.InvalidResponseLine;
+    }
+
+    while (it.next()) |line| {
+        header_length += line.len + 2;
+        if (line.len == 0) break;
+        if (std.mem.indexOfScalar(u8, line, ':')) |index| {
+            // +2 to strip out the leading space
+            headers.put(line[0..index], line[index + 2 ..]) catch unreachable;
+        } else {
+            return error.InvalidHeader;
+        }
+    }
+
+    var body_length = raw.len - header_length;
+    if (headers.get("Transfer-Encoding")) |te| {
+        if (std.mem.eql(u8, te, "chunked")) {
+            body_length = decodeChunkedEncoding(raw[header_length..], data[header_length..]);
+        }
+    }
+
+    return .{
+        .raw = raw,
+        .status = status,
+        .headers = headers,
+        .allocator = allocator,
+        .body = raw[header_length .. header_length + body_length],
+    };
+}
