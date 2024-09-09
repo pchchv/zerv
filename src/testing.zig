@@ -60,6 +60,31 @@ pub const Testing = struct {
             self.allocator.free(self.raw);
         }
     };
+
+    pub fn deinit(self: *Testing) void {
+        self._ctx.deinit();
+    }
+
+    pub fn query(self: *Testing, name: []const u8, value: []const u8) void {
+        const req = self.req;
+        req.qs_read = true;
+        req.qs.add(name, value);
+
+        const encoded_name = escapeString(self.arena, name) catch unreachable;
+        const encoded_value = escapeString(self.arena, value) catch unreachable;
+        const kv = std.fmt.allocPrint(self.arena, "{s}={s}", .{ encoded_name, encoded_value }) catch unreachable;
+
+        const q = req.url.query;
+        if (q.len == 0) {
+            req.url.query = kv;
+        } else {
+            req.url.query = std.fmt.allocPrint(self.arena, "{s}&{s}", .{ q, kv }) catch unreachable;
+        }
+    }
+
+    pub fn url(self: *Testing, u: []const u8) void {
+        self.req.url = zerv.Url.parse(u);
+    }
 };
 
 const JsonComparer = struct {
