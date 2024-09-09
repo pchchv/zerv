@@ -6,6 +6,8 @@ const t = @import("test.zig");
 const zerv = @import("zerv.zig");
 
 const Conn = @import("worker.zig").HTTPConn;
+
+const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
 pub const Testing = struct {
@@ -43,6 +45,96 @@ const JsonComparer = struct {
 
     fn deinit(self: JsonComparer) void {
         self._arena.deinit();
+    }
+
+    // Compare by getting the string representation of a and b
+    // and then parsing it into a std.json.ValueTree,
+    // which can compare Either a or b might already be serialized JSON string.
+    fn compare(self: *JsonComparer, a: anytype, b: anytype) !ArrayList(Diff) {
+        const allocator = self._arena.allocator();
+        var a_bytes: []const u8 = undefined;
+        if (comptime isString(@TypeOf(a))) {
+            a_bytes = a;
+        } else {
+            a_bytes = try self.stringify(a);
+        }
+
+        var b_bytes: []const u8 = undefined;
+        if (comptime isString(@TypeOf(b))) {
+            b_bytes = b;
+        } else {
+            b_bytes = try self.stringify(b);
+        }
+
+        const a_value = try std.json.parseFromSliceLeaky(std.json.Value, allocator, a_bytes, .{});
+        const b_value = try std.json.parseFromSliceLeaky(std.json.Value, allocator, b_bytes, .{});
+        var diffs = ArrayList(Diff).init(allocator);
+        var path = ArrayList([]const u8).init(allocator);
+        try self.compareValue(a_value, b_value, &diffs, &path);
+        return diffs;
+    }
+
+    fn compareValue(self: *JsonComparer, a: std.json.Value, b: std.json.Value, diffs: *ArrayList(Diff), path: *ArrayList([]const u8)) !void {
+        const allocator = self._arena.allocator();
+        if (!std.mem.eql(u8, @tagName(a), @tagName(b))) {
+            diffs.append(self.diff("types don't match", path, @tagName(a), @tagName(b))) catch unreachable;
+            return;
+        }
+
+        switch (a) {
+            .null => {},
+            .bool => {
+                if (a.bool != b.bool) {
+                    diffs.append(self.diff("not equal", path, self.format(a.bool), self.format(b.bool))) catch unreachable;
+                }
+            },
+            .integer => {
+                if (a.integer != b.integer) {
+                    diffs.append(self.diff("not equal", path, self.format(a.integer), self.format(b.integer))) catch unreachable;
+                }
+            },
+            .float => {
+                if (a.float != b.float) {
+                    diffs.append(self.diff("not equal", path, self.format(a.float), self.format(b.float))) catch unreachable;
+                }
+            },
+            .number_string => {
+                if (!std.mem.eql(u8, a.number_string, b.number_string)) {
+                    diffs.append(self.diff("not equal", path, a.number_string, b.number_string)) catch unreachable;
+                }
+            },
+            .string => {
+                if (!std.mem.eql(u8, a.string, b.string)) {
+                    diffs.append(self.diff("not equal", path, a.string, b.string)) catch unreachable;
+                }
+            },
+            .array => {
+                const a_len = a.array.items.len;
+                const b_len = b.array.items.len;
+                if (a_len != b_len) {
+                    diffs.append(self.diff("array length", path, self.format(a_len), self.format(b_len))) catch unreachable;
+                    return;
+                }
+                for (a.array.items, b.array.items, 0..) |a_item, b_item, i| {
+                    try path.append(try std.fmt.allocPrint(allocator, "{d}", .{i}));
+                    try self.compareValue(a_item, b_item, diffs, path);
+                    _ = path.pop();
+                }
+            },
+            .object => {
+                var it = a.object.iterator();
+                while (it.next()) |entry| {
+                    const key = entry.key_ptr.*;
+                    try path.append(key);
+                    if (b.object.get(key)) |b_item| {
+                        try self.compareValue(entry.value_ptr.*, b_item, diffs, path);
+                    } else {
+                        diffs.append(self.diff("field missing", path, key, "")) catch unreachable;
+                    }
+                    _ = path.pop();
+                }
+            },
+        }
     }
 
 fn isString(comptime T: type) bool {
