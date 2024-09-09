@@ -156,5 +156,15 @@ pub fn ThreadPool(comptime F: anytype) type {
                 @call(.auto, F, full_args);
             }
         }
+
+        // assumed to be called under lock
+        inline fn isFull(self: *Self, queue_end: usize) bool {
+            const tail = self.tail;
+            const head = self.head;
+            if (tail == 0) {
+                return head == queue_end;
+            }
+            return head == tail - 1;
+        }
     };
 }
