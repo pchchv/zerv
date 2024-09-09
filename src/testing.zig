@@ -85,6 +85,23 @@ pub const Testing = struct {
     pub fn url(self: *Testing, u: []const u8) void {
         self.req.url = zerv.Url.parse(u);
     }
+
+    pub fn json(self: *Testing, value: anytype) void {
+        var arr = ArrayList(u8).init(self.arena);
+        std.json.stringify(value, .{}, arr.writer()) catch unreachable;
+        self.req.body_buffer = .{ .type = .static, .data = arr.items };
+        self.req.body_len = arr.items.len;
+    }
+
+    pub fn param(self: *Testing, name: []const u8, value: []const u8) void {
+        // This is ugly, but the Param structure is optimized for how the router
+        // works, so we don't have a clean API for setting 1 key=value pair. We'll
+        // just dig into the internals instead
+        var p = self.req.params;
+        p.names[p.len] = name;
+        p.values[p.len] = value;
+        p.len += 1;
+    }
 };
 
 const JsonComparer = struct {
