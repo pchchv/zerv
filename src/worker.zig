@@ -1016,7 +1016,7 @@ pub fn Blocking(comptime S: type, comptime WSH: type) type {
 
             var is_first = true;
             while (true) {
-                const done = conn.req_state.parse(stream) catch |err| {
+                const done = conn.req_state.parse(conn.req_arena.allocator(), stream) catch |err| {
                     if (err == error.WouldBlock) {
                         if (is_keepalive and is_first) {
                             metrics.timeoutKeepalive(1);
