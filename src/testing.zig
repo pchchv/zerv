@@ -23,3 +23,14 @@ pub const Testing = struct {
         headers: std.StringHashMap([]const u8),
     };
 };
+
+const JsonComparer = struct {
+    _arena: std.heap.ArenaAllocator,
+
+    const Diff = struct {
+        err: []const u8,
+        path: []const u8,
+        a: []const u8,
+        b: []const u8,
+    };
+};
