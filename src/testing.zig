@@ -177,6 +177,18 @@ pub const Testing = struct {
         const pr = try self.parseResponse();
         try t.expectEqual(expected, pr.headers.count());
     }
+
+    pub fn parseResponse(self: *Testing) !Response {
+        if (self.parsed_response) |r| return r;
+
+        try self.res.write();
+        self._ctx.close();
+
+        const data = try self._ctx.read(self.arena);
+        const pr = try parseWithAllocator(self.arena, data.items);
+        self.parsed_response = pr;
+        return pr;
+    }
 };
 
 const JsonComparer = struct {
