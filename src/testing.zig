@@ -459,3 +459,7 @@ pub fn parseWithAllocator(allocator: Allocator, data: []u8) !Testing.Response {
         .body = raw[header_length .. header_length + body_length],
     };
 }
+
+pub fn parse(data: []u8) !Testing.Response {
+    return parseWithAllocator(t.allocator, data);
+}
