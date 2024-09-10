@@ -2,6 +2,13 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const Status = enum {
+    pass,
+    fail,
+    skip,
+    text,
+};
+
 const Env = struct {
     verbose: bool,
     fail_first: bool,
