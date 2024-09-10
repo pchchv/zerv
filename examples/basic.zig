@@ -1,5 +1,56 @@
+// This example demonstrates basic zerv usage,
+// with focus on using the zerv.Request and zerv.Response objects.
+
 const std = @import("std");
 const zerv = @import("zerv");
+
+const PORT = 8801;
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // The “void” handler is passed.
+    // This is the simplest option, but it limits the possibilities.
+    // The last parameter is the instance of the handler.
+    // Since the handler is void, the value void: i.e. {} is passed.
+    var server = try zerv.Server(void).init(allocator, .{
+        .port = PORT,
+        .request = .{
+            // zerv has a number of tweakable configuration settings (see readme) by default,
+            // it won't read form data.
+            // Is needed to configure a max field count
+            // (since one of our examples reads form data)
+            .max_form_count = 20,
+        },
+    }, {});
+    defer server.deinit();
+
+    // ensures a clean shutdown,
+    // finishing off any existing requests see shutdown.zig for how to to break server.listen with an interrupt
+    defer server.stop();
+
+    var router = server.router(.{});
+
+    // Register routes.
+    // The last parameter is a Route Config.
+    // It is not used for these basic examples.
+    // Other support methods: post, put, delete, head, trace, options and all
+    router.get("/", index, .{});
+    router.get("/hello", hello, .{});
+    router.get("/json/hello/:name", json, .{});
+    router.get("/writer/hello/:name", writer, .{});
+    router.get("/metrics", metrics, .{});
+    router.get("/form_data", formShow, .{});
+    router.post("/form_data", formPost, .{});
+    router.get("/explicit_write", explicitWrite, .{});
+
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // Starts the server,
+    // this is blocking.
+    try server.listen();
+}
 
 fn index(_: *zerv.Request, res: *zerv.Response) !void {
     res.body =
