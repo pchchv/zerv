@@ -32,6 +32,25 @@ test "testing: body" {
     try t.expectString("the body", ht.req.body().?);
 }
 
+test "testing: expectBody empty" {
+    var ht = init(.{});
+    defer ht.deinit();
+    try ht.expectStatus(200);
+    try ht.expectBody("");
+    try ht.expectHeaderCount(1);
+    try ht.expectHeader("Content-Length", "0");
+}
+
+test "testing: expectBody" {
+    var ht = init(.{});
+    defer ht.deinit();
+    ht.res.status = 404;
+    ht.res.body = "nope";
+
+    try ht.expectStatus(404);
+    try ht.expectBody("nope");
+}
+
 test "testing: query" {
     var ht = init(.{});
     defer ht.deinit();
