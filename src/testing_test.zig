@@ -121,3 +121,15 @@ test "testing: form" {
     try t.expectString("(9000)", fd.get("over").?);
     try t.expectString("wo rld", fd.get("hello").?);
 }
+
+test "testing: parseResponse" {
+    var ht = init(.{});
+    defer ht.deinit();
+    ht.res.status = 201;
+    try ht.res.json(.{ .tea = 33 }, .{});
+
+    try ht.expectStatus(201);
+    const res = try ht.parseResponse();
+    try t.expectEqual(201, res.status);
+    try t.expectEqual(2, res.headers.count());
+}
