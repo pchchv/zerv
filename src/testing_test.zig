@@ -62,3 +62,33 @@ test "testing: query via url" {
     const query = try ht.req.query();
     try t.expectString("idaho", query.get("duncan").?);
 }
+
+test "testing: json" {
+    var ht = init(.{});
+    defer ht.deinit();
+
+    ht.json(.{ .over = 9000 });
+    try t.expectString("{\"over\":9000}", ht.req.body().?);
+}
+
+test "testing: expectJson" {
+    var ht = init(.{});
+    defer ht.deinit();
+    ht.res.status = 201;
+    try ht.res.json(.{ .tea = "keemun", .price = .{ .amount = 4990, .discount = 0.1 } }, .{});
+
+    try ht.expectStatus(201);
+    try ht.expectJson(.{ .price = .{ .discount = 0.1, .amount = 4990 }, .tea = "keemun" });
+}
+
+test "testing: getJson" {
+    var ht = init(.{});
+    defer ht.deinit();
+
+    ht.res.status = 201;
+    try ht.res.json(.{ .tea = "silver needle" }, .{});
+
+    try ht.expectStatus(201);
+    const json = try ht.getJson();
+    try t.expectString("silver needle", json.object.get("tea").?.string);
+}
