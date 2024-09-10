@@ -111,3 +111,13 @@ test "testing: getJson" {
     const json = try ht.getJson();
     try t.expectString("silver needle", json.object.get("tea").?.string);
 }
+
+test "testing: form" {
+    var ht = init(.{ .request = .{ .max_form_count = 2 } });
+    defer ht.deinit();
+
+    ht.form(.{ .over = "(9000)", .hello = "wo rld" });
+    const fd = try ht.req.formData();
+    try t.expectString("(9000)", fd.get("over").?);
+    try t.expectString("wo rld", fd.get("hello").?);
+}
