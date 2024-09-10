@@ -1,6 +1,9 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
+
+const BORDER = "=" ** 80;
 
 const Status = enum {
     pass,
@@ -147,6 +150,133 @@ const SlowTracker = struct {
         return std.math.order(a.ns, b.ns);
     }
 };
+
+// use in custom panic handler
+var current_test: ?[]const u8 = null;
+
+pub fn main() !void {
+    var mem: [8192]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&mem);
+
+    const allocator = fba.allocator();
+
+    const env = Env.init(allocator);
+    defer env.deinit(allocator);
+
+    var slowest = SlowTracker.init(allocator, 5);
+    defer slowest.deinit();
+
+    var pass: usize = 0;
+    var fail: usize = 0;
+    var skip: usize = 0;
+    var leak: usize = 0;
+
+    const printer = Printer.init();
+    printer.fmt("\r\x1b[0K", .{}); // beginning of line and clear to end of line
+
+    for (builtin.test_functions) |t| {
+        if (isSetup(t)) {
+            t.func() catch |err| {
+                printer.status(.fail, "\nsetup \"{s}\" failed: {}\n", .{ t.name, err });
+                return err;
+            };
+        }
+    }
+
+    for (builtin.test_functions) |t| {
+        if (isSetup(t) or isTeardown(t)) {
+            continue;
+        }
+
+        var status = Status.pass;
+        slowest.startTiming();
+
+        const is_unnamed_test = isUnnamed(t);
+        if (env.filter) |f| {
+            if (!is_unnamed_test and std.mem.indexOf(u8, t.name, f) == null) {
+                continue;
+            }
+        }
+
+        const friendly_name = blk: {
+            const name = t.name;
+            var it = std.mem.splitScalar(u8, name, '.');
+            while (it.next()) |value| {
+                if (std.mem.eql(u8, value, "test")) {
+                    const rest = it.rest();
+                    break :blk if (rest.len > 0) rest else name;
+                }
+            }
+            break :blk name;
+        };
+
+        current_test = friendly_name;
+        std.testing.allocator_instance = .{};
+        const result = t.func();
+        current_test = null;
+
+        if (is_unnamed_test) {
+            continue;
+        }
+
+        const ns_taken = slowest.endTiming(friendly_name);
+
+        if (std.testing.allocator_instance.deinit() == .leak) {
+            leak += 1;
+            printer.status(.fail, "\n{s}\n\"{s}\" - Memory Leak\n{s}\n", .{ BORDER, friendly_name, BORDER });
+        }
+
+        if (result) |_| {
+            pass += 1;
+        } else |err| switch (err) {
+            error.SkipZigTest => {
+                skip += 1;
+                status = .skip;
+            },
+            else => {
+                status = .fail;
+                fail += 1;
+                printer.status(.fail, "\n{s}\n\"{s}\" - {s}\n{s}\n", .{ BORDER, friendly_name, @errorName(err), BORDER });
+                if (@errorReturnTrace()) |trace| {
+                    std.debug.dumpStackTrace(trace.*);
+                }
+                if (env.fail_first) {
+                    break;
+                }
+            },
+        }
+
+        if (env.verbose) {
+            const ms = @as(f64, @floatFromInt(ns_taken)) / 1_000_000.0;
+            printer.status(status, "{s} ({d:.2}ms)\n", .{ friendly_name, ms });
+        } else {
+            printer.status(status, ".", .{});
+        }
+    }
+
+    for (builtin.test_functions) |t| {
+        if (isTeardown(t)) {
+            t.func() catch |err| {
+                printer.status(.fail, "\nteardown \"{s}\" failed: {}\n", .{ t.name, err });
+                return err;
+            };
+        }
+    }
+
+    const total_tests = pass + fail;
+    const status = if (fail == 0) Status.pass else Status.fail;
+    printer.status(status, "\n{d} of {d} test{s} passed\n", .{ pass, total_tests, if (total_tests != 1) "s" else "" });
+    if (skip > 0) {
+        printer.status(.skip, "{d} test{s} skipped\n", .{ skip, if (skip != 1) "s" else "" });
+    }
+    if (leak > 0) {
+        printer.status(.fail, "{d} test{s} leaked\n", .{ leak, if (leak != 1) "s" else "" });
+    }
+    printer.fmt("\n", .{});
+    try slowest.display(printer);
+    printer.fmt("\n", .{});
+    std.posix.exit(if (fail == 0) 0 else 1);
+}
 
 fn isSetup(t: std.builtin.TestFn) bool {
     return std.mem.endsWith(u8, t.name, "tests:beforeAll");
