@@ -1,3 +1,4 @@
+const std = @import("std");
 const zerv = @import("zerv");
 
 fn index(_: *zerv.Request, res: *zerv.Response) !void {
@@ -24,4 +25,15 @@ fn json(req: *zerv.Request, res: *zerv.Response) !void {
     const name = req.param("name").?;
     // the last parameter to res.json is an std.json.StringifyOptions
     try res.json(.{ .hello = name }, .{});
+}
+
+fn writer(req: *zerv.Request, res: *zerv.Response) !void {
+    res.content_type = zerv.ContentType.JSON;
+
+    const name = req.param("name").?;
+    var ws = std.json.writeStream(res.writer(), .{ .whitespace = .indent_4 });
+    try ws.beginObject();
+    try ws.objectField("name");
+    try ws.write(name);
+    try ws.endObject();
 }
