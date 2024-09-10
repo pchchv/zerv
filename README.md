@@ -34,3 +34,11 @@ fn getUser(req: *zerv.Request, res: *zerv.Response) !void {
   try res.json(.{.id = req.param("id").?, .name = "Teg"}, .{});
 }
 ```
+
+# Examples
+See the [examples](https://github.com/pchchv/zerv/tree/master/examples) folder for examples. If you clone this repository, you can run `zig build example_#` to run a specific example:
+
+```bash
+$ zig build example_1
+listening http://localhost:8800/
+```
