@@ -51,3 +51,25 @@ fn explicitWrite(_: *zerv.Request, res: *zerv.Response) !void {
     ;
     return res.write();
 }
+
+fn formShow(_: *zerv.Request, res: *zerv.Response) !void {
+    res.body =
+        \\ <html>
+        \\ <form method=post>
+        \\    <p><input name=name value=goku></p>
+        \\    <p><input name=power value=9001></p>
+        \\    <p><input type=submit value=submit></p>
+        \\ </form>
+    ;
+}
+
+fn formPost(req: *zerv.Request, res: *zerv.Response) !void {
+    var it = (try req.formData()).iterator();
+
+    res.content_type = .TEXT;
+
+    const w = res.writer();
+    while (it.next()) |kv| {
+        try std.fmt.format(w, "{s}={s}\n", .{ kv.key, kv.value });
+    }
+}
