@@ -37,3 +37,17 @@ fn writer(req: *zerv.Request, res: *zerv.Response) !void {
     try ws.write(name);
     try ws.endObject();
 }
+
+fn metrics(_: *zerv.Request, res: *zerv.Response) !void {
+    // zerv exposes some prometheus-style metrics
+    return zerv.writeMetrics(res.writer());
+}
+
+fn explicitWrite(_: *zerv.Request, res: *zerv.Response) !void {
+    res.body =
+        \\ There may be cases where your response is tied to data which
+        \\ required cleanup. If `res.arena` and `res.writer()` can't solve
+        \\ the issue, you can always call `res.write()` explicitly
+    ;
+    return res.write();
+}
