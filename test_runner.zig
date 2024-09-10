@@ -3,6 +3,10 @@ const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
 
+pub const std_options = .{ .log_scope_levels = &[_]std.log.ScopeLevel{
+    .{ .scope = .websocket, .level = .err },
+} };
+
 const BORDER = "=" ** 80;
 
 const Status = enum {
