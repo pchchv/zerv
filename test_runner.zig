@@ -155,3 +155,11 @@ fn isSetup(t: std.builtin.TestFn) bool {
 fn isTeardown(t: std.builtin.TestFn) bool {
     return std.mem.endsWith(u8, t.name, "tests:afterAll");
 }
+
+fn isUnnamed(t: std.builtin.TestFn) bool {
+    const marker = ".test_";
+    const test_name = t.name;
+    const index = std.mem.indexOf(u8, test_name, marker) orelse return false;
+    _ = std.fmt.parseInt(u32, test_name[index + marker.len ..], 10) catch return false;
+    return true;
+}
