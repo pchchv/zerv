@@ -282,6 +282,13 @@ pub fn main() !void {
     std.posix.exit(if (fail == 0) 0 else 1);
 }
 
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    if (current_test) |ct| {
+        std.debug.print("\x1b[31m{s}\npanic running \"{s}\"\n{s}\x1b[0m\n", .{ BORDER, ct, BORDER });
+    }
+    std.builtin.default_panic(msg, error_return_trace, ret_addr);
+}
+
 fn isSetup(t: std.builtin.TestFn) bool {
     return std.mem.endsWith(u8, t.name, "tests:beforeAll");
 }
