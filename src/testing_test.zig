@@ -31,3 +31,34 @@ test "testing: body" {
     ht.body("the body");
     try t.expectString("the body", ht.req.body().?);
 }
+
+test "testing: query" {
+    var ht = init(.{});
+    defer ht.deinit();
+
+    ht.query("search", "t:ea");
+    ht.query("category", "447");
+
+    const query = try ht.req.query();
+    try t.expectString("t:ea", query.get("search").?);
+    try t.expectString("447", query.get("category").?);
+    try t.expectString("search=t%3Aea&category=447", ht.req.url.query);
+    try t.expectEqual(null, query.get("other"));
+}
+
+test "testing: empty query" {
+    var ht = init(.{});
+    defer ht.deinit();
+
+    const query = try ht.req.query();
+    try t.expectEqual(0, query.len);
+}
+
+test "testing: query via url" {
+    var ht = init(.{});
+    defer ht.deinit();
+    ht.url("/hello?duncan=idaho");
+
+    const query = try ht.req.query();
+    try t.expectString("idaho", query.get("duncan").?);
+}
