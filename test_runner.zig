@@ -45,3 +45,30 @@ const Env = struct {
         return std.ascii.eqlIgnoreCase(value, "true");
     }
 };
+
+const Printer = struct {
+    out: std.fs.File.Writer,
+
+    fn init() Printer {
+        return .{
+            .out = std.io.getStdErr().writer(),
+        };
+    }
+
+    fn fmt(self: Printer, comptime format: []const u8, args: anytype) void {
+        std.fmt.format(self.out, format, args) catch unreachable;
+    }
+
+    fn status(self: Printer, s: Status, comptime format: []const u8, args: anytype) void {
+        const color = switch (s) {
+            .pass => "\x1b[32m",
+            .fail => "\x1b[31m",
+            .skip => "\x1b[33m",
+            else => "",
+        };
+        const out = self.out;
+        out.writeAll(color) catch @panic("writeAll failed?!");
+        std.fmt.format(out, format, args) catch @panic("std.fmt.format failed?!");
+        self.fmt("\x1b[0m", .{});
+    }
+};
