@@ -147,3 +147,7 @@ const SlowTracker = struct {
         return std.math.order(a.ns, b.ns);
     }
 };
+
+fn isSetup(t: std.builtin.TestFn) bool {
+    return std.mem.endsWith(u8, t.name, "tests:beforeAll");
+}
