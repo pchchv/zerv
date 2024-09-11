@@ -33,6 +33,14 @@ const Handler = struct {
     }
 };
 
+pub fn hits(h: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    const count = @atomicRmw(usize, &h._hits, .Add, 1, .monotonic);
+
+    // @atomicRmw returns the previous version so is
+    // needed to +1 it to display the count includin this hit
+    return res.json(.{ .hits = count + 1 }, .{});
+}
+
 fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
     res.body =
         \\<!DOCTYPE html>
