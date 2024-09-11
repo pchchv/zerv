@@ -46,3 +46,7 @@ fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
         \\ <li><a href="/error">Custom error  handler</a>
     ;
 }
+
+fn @"error"(_: *Handler, _: *zerv.Request, _: *zerv.Response) !void {
+    return error.ActionError;
+}
