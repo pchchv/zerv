@@ -1,8 +1,9 @@
-// This example uses a custom dispatch method on our handler for greater control
-// in how actions are executed.
+// This example uses a custom dispatch method on handler for greater control in how actions are executed.
 
 const std = @import("std");
 const zerv = @import("zerv");
+
+const PORT = 8803;
 
 const Handler = struct {
     // In addition to the special "notFound" and "uncaughtError" shown in example 2
@@ -18,6 +19,29 @@ const Handler = struct {
         std.debug.print("ts={d} us={d} path={s}\n", .{ std.time.timestamp(), start.lap() / 1000, req.url.path });
     }
 };
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var handler = Handler{};
+    var server = try zerv.Server(*Handler).init(allocator, .{ .port = PORT }, &handler);
+
+    defer server.deinit();
+
+    // ensures a clean shutdown,
+    // finishing off any existing requests see shutdown.zig for how to to break server.listen with an interrupt
+    defer server.stop();
+
+    var router = server.router(.{});
+
+    router.get("/", index, .{});
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // starts the server,
+    // this is blocking
+    try server.listen();
+}
 
 fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
     res.body =
