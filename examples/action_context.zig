@@ -1,8 +1,10 @@
-// This example is very similar to 03_dispatch.zig,
+// This example is very similar to dispatch.zig,
 // but shows how the action state can be a different type than the handler.
 
 const std = @import("std");
 const zerv = @import("zerv");
+
+const PORT = 8804;
 
 const RouteData = struct {
     restricted: bool,
@@ -43,6 +45,35 @@ const Handler = struct {
         try action(&env, req, res);
     }
 };
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var handler = Handler{};
+    var server = try zerv.Server(*Handler).init(allocator, .{ .port = PORT }, &handler);
+
+    defer server.deinit();
+
+    // ensures a clean shutdown,
+    // finishing off any existing requests see shutdown.zig for how to to break server.listen with an interrupt
+    defer server.stop();
+
+    var router = server.router(.{});
+
+    const restricted_route = &RouteData{ .restricted = true };
+
+    // We can register arbitrary data to a route,
+    // which we can retrieve via req.route_data.
+    // This is stored as a `*const anyopaque`.
+    router.get("/", index, .{});
+    router.get("/admin", admin, .{ .data = restricted_route });
+
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // Starts the server, this is blocking.
+    try server.listen();
+}
 
 fn index(_: *Env, _: *zerv.Request, res: *zerv.Response) !void {
     res.content_type = .HTML;
