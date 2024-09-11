@@ -32,3 +32,17 @@ const Handler = struct {
         res.body = "<!DOCTYPE html>(╯°□°)╯︵ ┻━┻";
     }
 };
+
+fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    res.body =
+        \\<!DOCTYPE html>
+        \\ <p>Except in very simple cases, you'll want to use a custom Handler.
+        \\ <p>A custom Handler is how you share app-specific data with your actions (like a DB pool)
+        \\    and define a custom not found and error function.
+        \\ <p>Other examples show more advanced things you can do with a custom Handler.
+        \\ <ul>
+        \\ <li><a href="/hits">Shared global hit counter</a>
+        \\ <li><a href="/not_found">Custom not found handler</a>
+        \\ <li><a href="/error">Custom error  handler</a>
+    ;
+}
