@@ -4,3 +4,8 @@
 const RouteData = struct {
     restricted: bool,
 };
+
+const Env = struct {
+    handler: *Handler,
+    user: ?[]const u8,
+};
