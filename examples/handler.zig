@@ -6,6 +6,8 @@
 const zerv = @import("zerv");
 const std = @import("std");
 
+const PORT = 8802;
+
 const Handler = struct {
     _hits: usize = 0,
 
@@ -39,6 +41,36 @@ pub fn hits(h: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
     // @atomicRmw returns the previous version so is
     // needed to +1 it to display the count includin this hit
     return res.json(.{ .hits = count + 1 }, .{});
+}
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // “Handler” is specified and,
+    // as the last init parameter,
+    // its instance is passed.
+    var handler = Handler{};
+    var server = try zerv.Server(*Handler).init(allocator, .{ .port = PORT }, &handler);
+
+    defer server.deinit();
+
+    // ensures a clean shutdown, finishing off any existing requests
+    // see shutdown.zig for how to to break server.listen with an interrupt
+    defer server.stop();
+
+    var router = server.router(.{});
+
+    // register routes
+    router.get("/", index, .{});
+    router.get("/hits", hits, .{});
+    router.get("/error", @"error", .{});
+
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // starts the server,
+    // this is blocking
+    try server.listen();
 }
 
 fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
