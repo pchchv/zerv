@@ -42,3 +42,14 @@ const Handler = struct {
         try action(&env, req, res);
     }
 };
+
+fn index(_: *Env, _: *zerv.Request, res: *zerv.Response) !void {
+    res.content_type = .HTML;
+    res.body =
+        \\<!DOCTYPE html>
+        \\ <p>The <code>Handler.dispatch</code> method takes an <code>zerv.Action(*Env)</code>.
+        \\ <p>This allows the handler method to create a request-specific value to pass into actions.
+        \\ <p>For example, dispatch might load a User (using a request header value maybe) and make it available to the action.
+        \\ <p>Goto <a href="/admin?auth=superuser">admin</a> to simulate a (very insecure) authentication.
+    ;
+}
