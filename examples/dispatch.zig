@@ -18,3 +18,14 @@ const Handler = struct {
         std.debug.print("ts={d} us={d} path={s}\n", .{ std.time.timestamp(), start.lap() / 1000, req.url.path });
     }
 };
+
+fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    res.body =
+        \\ If defied, the dispatch method will be invoked for every request with a matching route.
+        \\ It is up to dispatch to decide how/if the action should be called. While zerv
+        \\ supports middleware, most cases can be more easily and cleanly handled with
+        \\ a custom dispatch alone (you can always use both middlewares and a custom dispatch though).
+        \\
+        \\ Check out the console, our custom dispatch function times & logs each request.
+    ;
+}
