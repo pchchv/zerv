@@ -1,8 +1,8 @@
 // This example demonstrates how to shutdown zerv.
 // Only works on Linux/MacOS/BSD.
 
-const zerv = @import("zerv");
 const std = @import("std");
+const zerv = @import("zerv");
 
 const PORT = 8809;
 

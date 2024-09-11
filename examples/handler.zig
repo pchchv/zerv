@@ -3,8 +3,8 @@
 // (a counter is demonstrated here, but it could be a more complex structure involving things like a database pool)
 // and how to define handlers for not found and errors.
 
-const zerv = @import("zerv");
 const std = @import("std");
+const zerv = @import("zerv");
 
 const PORT = 8802;
 
