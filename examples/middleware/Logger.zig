@@ -17,8 +17,9 @@ pub const Config = struct {
     query: bool,
 };
 
-// Must define an `init` method, which will accept your Config
-// Alternatively, you can define a init(config: Config, mc: zerv.MiddlewareConfig)
+// Must define an `init` method,
+// which will accept your Config Alternatively,
+// you can define a init(config: Config, mc: zerv.MiddlewareConfig)
 // here mc will give you access to the server's allocator and arena
 pub fn init(config: Config) !Logger {
     return .{
