@@ -555,3 +555,510 @@ router.get("/", index, .{
   .middlewares = &.{cors_middleware},
 });
 ```
+
+## Configuration
+The last parameter to the various `router` methods is a route configuration. In many cases, you'll probably use an empty configuration (`.{}`). The route configuration has three fields:
+
+* `dispatcher` - The dispatch method to use. This overrides the default dispatcher, which is either zerv built-in dispatcher or [your handler's `dispatch` method](#custom-dispatch).
+* `handler` - The handler instance to use. The default handler is the 3rd parameter passed to `Server(H).init` but you can override this on a route-per-route basis.
+* `middlewares` - A list of [middlewares](#middlewares) to run. By default, no middlewares are run. By default, this list of middleware is appended to the list given to `server.route(.{.middlewares = .{....})`.
+* `middleware_strategy` - How the given middleware should be merged with the global middlewares. Defaults to `.append`, can also be `.replace`.
+* `data` - Arbitrary data (`*const anyopaque`) to make available to `req.route_data`. This must be a `const`.
+
+You can specify a separate configuration for each route. To change the configuration for a group of routes, you have two options. The first, is to directly change the router's `handler`, `dispatcher` and `middlewares` field. Any subsequent routes will use these values:
+
+```zig
+var server = try zerv.Server(Handler).init(allocator, .{.port = 5882}, &handler);
+  
+var router = server.router(.{});
+
+// Will use Handler.dispatch on the &handler instance passed to init
+// No middleware
+router.get("/route1", route1, .{});
+
+router.dispatcher = Handler.dispathAuth;
+// uses the new dispatcher
+router.get("/route2", route2, .{}); 
+
+router.handler = &Handler{.public = true};
+// uses the new dispatcher + new handler
+router.get("/route3", route3, .{.handler = Handler.dispathAuth});
+```
+
+This approach is error prone though. New routes need to be carefully added in the correct order so that the desired handler, dispatcher and middlewares are used.
+
+A more scalable option is to use route groups.
+
+## Groups
+Defining a custom dispatcher or custom global data on each route can be tedious. Instead, consider using a router group:
+
+```zig
+var admin_routes = router.group("/admin", .{
+  .handler = &auth_handler,
+  .dispatcher = Handler.dispathAuth,
+  .middlewares = &.{cors_middleware},
+});
+admin_routes.get("/users", listUsers, .{});
+admin_routs.delete("/users/:id", deleteUsers, .{});
+```
+
+The first parameter to `group` is a prefix to prepend to each route in the group. An empty prefix is acceptable. Thus, route groups can be used to configure either a common prefix and/or a common configuration across multiple routes.
+
+## Casing
+You **must** use a lowercase route. You can use any casing with parameter names, as long as you use that same casing when getting the parameter.
+
+## Parameters
+Routing supports parameters, via `:CAPTURE_NAME`. The captured values are available via `req.params.get(name: []const u8) ?[]const u8`.  
+
+## Glob
+You can glob an individual path segment, or the entire path suffix. For a suffix glob, it is important that no trailing slash is present.
+
+```zig
+// prefer using a custom `notFound` handler than a global glob.
+router.all("/*", not_found, .{});
+router.get("/api/*/debug", .{})
+```
+
+When multiple globs are used, the most specific will be selected. E.g., give the following two routes:
+
+```zig
+router.get("/*", not_found, .{});
+router.get("/info/*", any_info, .{})
+```
+
+A request for "/info/debug/all" will be routed to `any_info`, whereas a request for "/over/9000" will be routed to `not_found`.
+
+## Limitations
+The router has several limitations which might not get fixed. These specifically resolve around the interaction of globs, parameters and static path segments.
+
+Given the following routes:
+
+```zig
+router.get("/:any/users", route1, .{});
+router.get("/hello/users/test", route2, .{});
+```
+
+You would expect a request to "/hello/users" to be routed to `route1`. However, no route will be found. 
+
+Globs interact similarly poorly with parameters and static path segments.
+
+Resolving this issue requires keeping a stack (or visiting the routes recursively), in order to back-out of a dead-end and trying a different path.
+This seems like an unnecessarily expensive thing to do, on each request, when, in my opinion, such route hierarchies are uncommon. 
+
+# Middlewares
+In general, use a [custom dispatch](#custom-dispatch) function to apply custom logic, such as logging, authentication and authorization. If you have complex route-specific logic, middleware can also be leveraged.
+
+A middleware is a struct which exposes a nested `Config` type, a public `init` function and a public `execute` method. It can optionally define a `deinit` method. See the built-in [CORS middleware](https://github.com/pchchv/zerv/blob/master/src/middleware/Cors.zig) or the sample [logger middleware](https://github.com/pchchv/zerv/blob/master/example/middleware/Logger.zig) for examples.
+
+A middleware instance is created using `server.middleware()` and can then be used with the router:
+
+```zig
+var server = try zerv.Server(void).init(allocator, .{.port = 5882}, {});
+
+// the middleware method takes the struct name and its configuration
+const cors = try server.middleware(zerv.middleware.Cors, .{
+  .origin = "https://www.openmymind.net/",
+});
+
+// apply this middleware to all routes (unless the route 
+// explicitly opts out)
+var router = server.router(.{.middlewares = .{cors}});
+
+// or we could add middleware on a route-per-route bassis
+router.get("/v1/users", .{.middlewares = &.{cors}});
+
+// by default, middlewares on a route are appended to the global middlewares
+// we can replace them instead by specifying a middleware_strategy
+router.get("/v1/metrics", .{.middlewares = &.{cors}, .middleware_strategy = .replace});
+```
+
+## Cors
+zerv comes with a built-in CORS middleware: `zerv.middlewares.Cors`. Its configuration is:
+
+* `origin: []const u8`
+* `headers: ?[]const u8 = null`
+* `methods: ?[]const u8 = null`
+* `max_age: ?[]const u8 = null`
+
+The CORS middleware will include a `Access-Control-Allow-Origin: $origin` to every request. For an OPTIONS request where the `sec-fetch-mode` is set to `cors, the `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods` and `Access-Control-Max-Age` response headers will optionally be set based on the configuration.
+
+
+# Configuration
+The second parameter given to `Server(H).init` is an `zerv.Config`. When running in <a href=#blocking-mode>blocking mode</a> (e.g. on Windows) a few of these behave slightly, but not drastically, different.
+
+There are many configuration options. 
+
+`thread_pool.buffer_size` is the single most important value to tweak. Usage of `req.arena`, `res.arena`, `res.writer()` and `res.json()` all use a fallback allocator which first uses a fast thread-local buffer and then an underlying arena. The total memory this will require is `thread_pool.count * thread_pool.buffer_size`. Since `thread_pool.count` is usually small, a large `buffer_size` is reasonable.
+
+`request.buffer_size` must be large enough to fit the request header. Any extra space might be used to read the body. However, there can be up to `workers.count * workers.max_conn` pending requests, so a large `request.buffer_size` can take up a lot of memory. Instead, consider keeping `request.buffer_size` only large enough for the header (plus a bit of overhead for decoding URL-escape values) and set `workers.large_buffer_size` to a reasonable size for your incoming request bodies. This will take `workers.count * workers.large_buffer_count * workers.large_buffer_size` memory. 
+
+Buffers for request bodies larger than `workers.large_buffer_size` but smaller than `request.max_body_size` will be dynamic allocated.
+
+In addition to a bit of overhead, at a minimum, zerv will use:
+
+```zig
+(thread_pool.count * thread_pool.buffer_size) +
+(workers.count * workers.large_buffer_count * workers.large_buffer_size) +
+(workers.count * workers.min_conn * request.buffer_size)
+```
+
+Possible values, along with their default, are:
+
+```zig
+try zerv.listen(allocator, &router, .{
+    // Port to listen on
+    .port = 5882, 
+
+    // Interface address to bind to
+    .address = "127.0.0.1",
+
+    // unix socket to listen on (mutually exclusive with host&port)
+    .unix_path = null,
+
+    // configure the workers which are responsible for:
+    // 1 - accepting connections
+    // 2 - reading and parsing requests
+    // 3 - passing requests to the thread pool
+    .workers = .{
+        // Number of worker threads
+        // (blocking mode: handled differently)
+        .count = 2,
+
+        // Maximum number of concurrent connection each worker can handle
+        // (blocking mode: currently ignored)
+        .max_conn = 500,
+
+        // Minimum number of connection states each worker should maintain
+        // (blocking mode: currently ignored)
+        .min_conn = 32,
+
+        // A pool of larger buffers that can be used for any data larger than configured
+        // static buffers. For example, if response headers don't fit in in 
+        // $response.header_buffer_size, a buffer will be pulled from here.
+        // This is per-worker. 
+        .large_buffer_count = 16,
+
+        // The size of each large buffer.
+        .large_buffer_size = 65536,
+
+        // Size of bytes retained for the connection arena between use. This will
+        // result in up to `count * min_conn * retain_allocated_bytes` of memory usage.
+        .retain_allocated_bytes = 4096,
+    },
+
+    // configures the threadpool which processes requests. The threadpool is 
+    // where your application code runs.
+    .thread_pool = .{
+        // Number threads. If you're handlers are doing a lot of i/o, a higher
+        // number might provide better throughput
+        // (blocking mode: handled differently)
+        .count = 4,
+
+        // The maximum number of pending requests that the thread pool will accept
+        // This applies back pressure to the above workers and ensures that, under load
+        // pending requests get precedence over processing new requests.
+        .backlog = 500,
+
+        // Size of the static buffer to give each thread. Memory usage will be 
+        // `count * buffer_size`. If you're making heavy use of either `req.arena` or
+        // `res.arena`, this is likely the single easiest way to gain performance. 
+        .buffer_size = 8192,
+    },
+
+    // options for tweaking request processing
+    .request = .{
+        // Maximum body size that we'll process. We can allocate up 
+        // to this much memory per request for the body. Internally, we might
+        // keep this memory around for a number of requests as an optimization.
+        .max_body_size: usize = 1_048_576,
+
+        // This memory is allocated upfront. The request header _must_ fit into
+        // this space, else the request will be rejected.
+        .buffer_size: usize = 4_096,
+
+        // Maximum number of headers to accept. 
+        // Additional headers will be silently ignored.
+        .max_header_count: usize = 32,
+
+        // Maximum number of URL parameters to accept.
+        // Additional parameters will be silently ignored.
+        .max_param_count: usize = 10,
+
+        // Maximum number of query string parameters to accept.
+        // Additional parameters will be silently ignored.
+        .max_query_count: usize = 32,
+
+        // Maximum number of x-www-form-urlencoded fields to support.
+        // Additional parameters will be silently ignored. This must be
+        // set to a value greater than 0 (the default) if you're going
+        // to use the req.formData() method.
+        .max_form_count: usize = 0,
+
+        // Maximum number of multipart/form-data fields to support.
+        // Additional parameters will be silently ignored. This must be
+        // set to a value greater than 0 (the default) if you're going
+        // to use the req.multiFormData() method.
+        .max_multiform_count: usize = 0,
+    },
+
+    // options for tweaking response object
+    .response = .{
+        // The maximum number of headers to accept. 
+        // Additional headers will be silently ignored.
+        .max_header_count: usize = 16,
+    },
+
+    .timeout = .{
+        // Time in seconds that keepalive connections will be kept alive while inactive
+        .keepalive = null,
+
+        // Time in seconds that a connection has to send a complete request
+        .request = null
+
+        // Maximum number of a requests allowed on a single keepalive connection
+        .request_count = null,
+    },
+    .websocket = .{
+        // refer to https://github.com/pchchv/websocket.zig#config
+        max_message_size: ?usize = null,
+        small_buffer_size: ?usize = null,
+        small_buffer_pool: ?usize = null,
+        large_buffer_size: ?usize = null,
+        large_buffer_pool: ?u16 = null,
+    },
+});
+```
+
+## Blocking Mode
+kqueue (BSD, MacOS) or epoll (Linux) are used on supported platforms. On all other platforms (most notably Windows), a more naive thread-per-connection with blocking sockets is used.
+
+The comptime-safe, `zerv.blockingMode() bool` function can be called to determine which mode zerv is running in (when it returns `true`, then you're running the simpler blocking mode).
+
+While you should always run zerv behind a reverse proxy, it's particularly important to do so in blocking mode due to the ease with which external connections can DOS the server.
+
+In blocking mode, `config.workers.count` is hard-coded to 1. (This worker does considerably less work than the non-blocking workers). If `config.workers.count` is > 1, than those extra workers will go towards `config.thread_pool.count`. In other words:
+
+In non-blocking mode, if `config.workers.count = 2` and `config.thread_pool.count = 4`, then you'll have 6 threads: 2 threads that read+parse requests and send replies, and 4 threads to execute application code.
+
+In blocking mode, the same config will also use 6 threads, but there will only be: 1 thread that accepts connections, and 5 threads to read+parse requests, send replies and execute application code.
+
+The goal is for the same configuration to result in the same # of threads regardless of the mode, and to have more thread_pool threads in blocking mode since they do more work.
+
+In blocking mode, `config.workers.large_buffer_count` defaults to the size of the thread pool.
+
+In blocking mode, `config.workers.max_conn` and `config.workers.min_conn` are ignored. The maximum number of connections is simply the size of the thread_pool.
+
+If you aren't using a reverse proxy, you should always set the `config.timeout.request`, `config.timeout.keepalive` and `config.timeout.request_count` settings. In blocking mode, consider using conservative values: say 5/5/5 (5 second request timeout, 5 second keepalive timeout, and 5 keepalive count). You can monitor the `zerv_timeout_active` metric to see if the request timeout is too low.
+
+## Timeouts
+The configuration settings under the `timeouts` section are designed to help protect the system against basic DOS attacks (say, by connecting and not sending data). However it is recommended that you leave these null (disabled) and use the appropriate timeout in your reverse proxy (e.g. NGINX). 
+
+The `timeout.request` is the time, in seconds, that a connection has to send a complete request. The `timeout.keepalive` is the time, in second, that a connection can stay connected without sending a request (after the initial request has been sent).
+
+The connection alternates between these two timeouts. It starts with a timeout of `timeout.request` and after the response is sent and the connection is placed in the "keepalive list", switches to the `timeout.keepalive`. When new data is received, it switches back to `timeout.request`. When `null`, both timeouts default to 2_147_483_647 seconds (so not completely disabled, but close enough).
+
+The `timeout.request_count` is the number of individual requests allowed within a single keepalive session. This protects against a client consuming the connection by sending unlimited meaningless but valid HTTP requests.
+
+When the three are combined, it should be difficult for a problematic client to stay connected indefinitely.
+
+If you're running zerv on Windows (or, more generally, where <code>zerv.blockingMode()</code> returns true), please <a href="#blocking-mode">read the section</a> as this mode of operation is more susceptible to DOS.
+
+# Metrics
+A few basic metrics are collected using [metrics.zig](https://github.com/pchchv/metrics.zig), a prometheus-compatible library. These can be written to an `std.io.Writer` using `try zerv.writeMetrics(writer)`. As an example:
+
+```zig
+pub fn metrics(_: *zerv.Request, res: *zerv.Response) !void {
+    const writer = res.writer();
+    try zerv.writeMetrics(writer);
+
+    // if we were also using pg.zig 
+    // try pg.writeMetrics(writer);
+}
+```
+
+Since zerv does not provide any authorization, care should be taken before exposing this. 
+
+The metrics are:
+
+* `zerv_connections` - counts each TCP connection
+* `zerv_requests` - counts each request (should  be >= zerv_connections due to keepalive)
+* `zerv_timeout_active` - counts each time an "active" connection is timed out. An "active" connection is one that has (a) just connected or (b) started to send bytes. The timeout is controlled by the `timeout.request` configuration.
+* `zerv_timeout_keepalive` - counts each time an "keepalive" connection is timed out. A "keepalive" connection has already received at least 1 response and the server is waiting for a new request. The timeout is controlled by the `timeout.keepalive` configuration.
+* `zerv_alloc_buffer_empty` - counts number of bytes allocated due to the large buffer pool being empty. This may indicate that `workers.large_buffer_count` should be larger.
+* `zerv_alloc_buffer_large` - counts number of bytes allocated due to the large buffer pool being too small. This may indicate that `workers.large_buffer_size` should be larger.
+* `zerv_alloc_unescape` - counts number of bytes allocated due to unescaping query or form parameters. This may indicate that `request.buffer_size` should be larger.
+* `zerv_internal_error` - counts number of unexpected errors within zerv. Such errors normally result in the connection being abruptly closed. For example, a failing syscall to epoll/kqueue would increment this counter.
+* `zerv_invalid_request` - counts number of requests which zerv could not parse (where the request is invalid).
+* `zerv_header_too_big` - counts the number of requests which zerv rejects due to a header being too big (does not fit in `request.buffer_size` config).
+* `zerv_body_too_big` - counts the number of requests which zerv rejects due to a body being too big (is larger than `request.max_body_size` config).
+
+# Testing
+The `zerv.testing` namespace exists to help application developers setup an `*zerv.Request` and assert an `*zerv.Response`.
+
+Imagine we have the following partial action:
+
+```zig
+fn search(req: *zerv.Request, res: *zerv.Response) !void {
+    const query = try req.query();
+    const search = query.get("search") orelse return missingParameter(res, "search");
+
+    // TODO ...
+}
+
+fn missingParameter(res: *zerv.Response, parameter: []const u8) !void {
+    res.status = 400;
+    return res.json(.{.@"error" = "missing parameter", .parameter = parameter}, .{});
+}
+```
+
+We can test the above error case like so:
+
+```zig
+const ht = @import("zerv").testing;
+
+test "search: missing parameter" {
+    // init takes the same Configuration used when creating the real server
+    // but only the config.request and config.response settings have any impact
+    var web_test = ht.init(.{});
+    defer web_test.deinit();
+
+    try search(web_test.req, web_test.res);
+    try web_test.expectStatus(400);
+    try web_test.expectJson(.{.@"error" = "missing parameter", .parameter = "search"});
+}
+```
+
+## Building the test Request
+The testing structure returns from <code>zerv.testing.init</code> exposes helper functions to set param, query and query values as well as the body:
+
+```zig
+var web_test = ht.init(.{});
+defer web_test.deinit();
+
+web_test.param("id", "99382");
+web_test.query("search", "tea");
+web_test.header("Authorization", "admin");
+
+web_test.body("over 9000!");
+// OR
+web_test.json(.{.over = 9000});
+// OR 
+// This requires ht.init(.{.request = .{.max_form_count = 10}})
+web_test.form(.{.over = "9000"});
+
+// at this point, web_test.req has a param value, a query string value, a header value and a body.
+```
+
+As an alternative to the `query` function, the full URL can also be set. If you use `query` AND `url`, the query parameters of the URL will be ignored:
+
+```zig
+web_test.url("/power?over=9000");
+```
+
+## Asserting the Response
+There are various methods to assert the response:
+
+```zig
+try web_test.expectStatus(200);
+try web_test.expectHeader("Location", "/");
+try web_test.expectHeader("Location", "/");
+try web_test.expectBody("{\"over\":9000}");
+```
+
+If the expected body is in JSON, there are two helpers available. First, to assert the entire JSON body, you can use `expectJson`:
+
+```zig
+try web_test.expectJson(.{.over = 9000});
+```
+
+Or, you can retrieve a `std.json.Value` object by calling `getJson`:
+
+```zig
+const json = try web_test.getJson();
+try std.testing.expectEqual(@as(i64, 9000), json.Object.get("over").?.Integer);
+```
+
+For more advanced validation, use the `parseResponse` function to return a structure representing the parsed response:
+
+```zig
+const res = try web_test.parsedResponse();
+try std.testing.expectEqual(@as(u16, 200), res.status);
+// use res.body for a []const u8  
+// use res.headers for a std.StringHashMap([]const u8)
+// use res.raw for the full raw response
+```
+
+# HTTP Compliance
+This implementation may never be fully HTTP/1.1 compliant, as it is built with the assumption that it will sit behind a reverse proxy that is tolerant of non-compliant upstreams (e.g. nginx). (One example I know of is that the server doesn't include the mandatory Date header in the response.)
+
+# Server Side Events
+Server Side Events can be enabled by calling `res.startEventStream()`. This method takes an arbitrary context and a function pointer. The provided function will be executed in a new thread, receiving the provided context and an `std.net.Stream`. Headers can be added (via `res.headers.add`) before calling `startEventStream()`. `res.body` must not be set (directly or indirectly).
+
+Calling `startEventStream()` automatically sets the `Content-Type`, `Cache-Control` and `Connection` header.
+
+```zig
+fn handler(_: *Request, res: *Response) !void {
+    try res.startEventStream(StreamContext{}, StreamContext.handle);
+}
+
+const StreamContext = struct {
+    fn handle(self: StreamContext, stream: std.net.Stream) void {
+        while (true) {
+            // some event loop
+            stream.writeAll("event: ....") catch return;
+        }
+    }
+}
+```
+
+# Websocket
+zerv integrates with [https://github.com/pchchv/websocket.zig](https://github.com/pchchv/websocket.zig) by calling `zerv.upgradeWebsocket()`. First, your handler must have a `WebsocketHandler` declaration which is the WebSocket handler type used by `websocket.Server(H)`.
+
+```zig
+const websocket = zerv.websocket;
+
+const Handler = struct {
+  // App-specific data you want to pass when initializing
+  // your WebSocketHandler
+  const WebsocketContext = struct {
+
+  };
+
+  // See the websocket.zig documentation. But essentially this is your
+  // Application's wrapper around 1 websocket connection
+  pub const WebsocketHandler = struct {
+    conn: *websocket.Conn,
+
+    // ctx is arbitrary data you passs to zerv.upgradeWebsocket
+    pub fn init(conn: *websocket.Conn, _: WebsocketContext) {
+      return .{
+        .conn =  conn,
+      }
+    }
+
+    // echo back
+    pub fn clientMessage(self: *WebsocketHandler, data: []const u8) !void {
+        try self.conn.write(data);
+    }
+  }  
+};
+```
+
+With this in place, you can call zerv.upgradeWebsocket() within an action:
+
+```zig
+fn ws(req: *zerv.Request, res: *zerv.Response) !void {
+  if (try zerv.upgradeWebsocket(WebsocketHandler, req, res, WebsocketContext{}) == false) {
+  // this was not a valid websocket handshake request
+  // you should probably return with an error
+  res.status = 400;
+  res.body = "invalid websocket handshake";
+  return;
+  }
+  // Do not use `res` from this point on
+}
+```
+
+In websocket.zig, `init` is passed a `websocket.Handshake`. This is not the case with the zerv integration - you are expected to do any necessary validation of the request in the action.
+
+It is an undefined behavior if `Handler.WebsocketHandler` is not the same type passed to `zerv.upgradeWebsocket`.
