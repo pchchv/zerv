@@ -42,3 +42,22 @@ See the [examples](https://github.com/pchchv/zerv/tree/master/examples) folder f
 $ zig build example_1
 listening http://localhost:8800/
 ```
+
+# Installation
+1) Add zerv as a dependency in your `build.zig.zon`:
+
+```bash
+zig fetch --save git+https://github.com/pchchv/zerv#master
+```
+
+2) In your `build.zig`, add the `zerv` module as a dependency you your program:
+
+```zig
+const zerv = b.dependency("zerv", .{
+    .target = target,
+    .optimize = optimize,
+});
+
+// the executable from your call to b.addExecutable(...)
+exe.root_module.addImport("zerv", zerv.module("zerv"));
+```
