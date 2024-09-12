@@ -9,8 +9,22 @@
 // (or middleware configurations)
 // are needed for different routes.
 
+const Logger = @This();
+
 // Must defined a pub config structure,
 // even if it's empty.
 pub const Config = struct {
     query: bool,
 };
+
+// Must define an `init` method, which will accept your Config
+// Alternatively, you can define a init(config: Config, mc: zerv.MiddlewareConfig)
+// here mc will give you access to the server's allocator and arena
+pub fn init(config: Config) !Logger {
+    return .{
+        .query = config.query,
+    };
+}
+
+// optionally you can define an "deinit" method
+pub fn deinit() void {}
