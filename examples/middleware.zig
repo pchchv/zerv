@@ -17,3 +17,12 @@ fn index(_: *zerv.Request, res: *zerv.Response) !void {
         \\   has no middleware, effectively disabling the Logger for that route.
     ;
 }
+
+fn other(_: *zerv.Request, res: *zerv.Response) !void {
+    // Called with a custom config which had no middlewares
+    // (effectively disabling the logging middleware)
+    res.body =
+        \\ Accessing this endpoint will NOT generate a log line in the console,
+        \\ because the Logger middleware is disabled.
+    ;
+}
