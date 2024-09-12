@@ -1,4 +1,4 @@
-// This example is very similar to dispatch.zig,
+// This example is very similar to 03_dispatch.zig,
 // but shows how the action state can be a different type than the handler.
 
 const std = @import("std");
@@ -16,7 +16,7 @@ const Env = struct {
 };
 
 const Handler = struct {
-    // In example_3, action type was: zerv.Action(*Handler).
+    // In dispatch example, action type was: zerv.Action(*Handler).
     // In this example, have changed it to: zerv.Action(*Env)
     // This allows handler to be a general app-wide "state" while actions received a request-specific context
     pub fn dispatch(self: *Handler, action: zerv.Action(*Env), req: *zerv.Request, res: *zerv.Response) !void {
@@ -25,8 +25,7 @@ const Handler = struct {
         // RouteData can be anything,
         // but since it's stored as a *const anyopaque you'll need to restore the type/alignment.
 
-        // (You could also use a per-route handler, or middleware,
-        // to achieve the same thing.
+        // (You could also use a per-route handler, or middleware, to achieve the same thing.
         // Using route data is a bit ugly due to the type erasure but it can be convenient!).
         if (req.route_data) |rd| {
             const route_data: *const RouteData = @ptrCast(@alignCast(rd));
@@ -63,9 +62,9 @@ pub fn main() !void {
 
     const restricted_route = &RouteData{ .restricted = true };
 
-    // We can register arbitrary data to a route,
-    // which we can retrieve via req.route_data.
-    // This is stored as a `*const anyopaque`.
+    // It is possible to log arbitrary data in a route,
+    // which can be retrieved via req.route_data.
+    // This data is stored as `*const anyopaque`.
     router.get("/", index, .{});
     router.get("/admin", admin, .{ .data = restricted_route });
 
