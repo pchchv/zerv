@@ -37,3 +37,8 @@ const Client = struct {
         return self.conn.write(data);
     }
 };
+
+const Handler = struct {
+    // or you could define the full structure here
+    pub const WebsocketHandler = Client;
+};
