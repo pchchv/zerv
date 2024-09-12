@@ -36,3 +36,15 @@ fn page2(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
         \\ because a custom handler instance is used
     ;
 }
+
+fn index(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    res.content_type = .HTML;
+    res.body =
+        \\<!DOCTYPE html>
+        \\ <p>It's possible to define a custom dispatch method, custom handler instance and/or custom middleware per-route.
+        \\ <p>It's also possible to create a route group, which is a group of routes who share a common prefix and/or a custom configration.
+        \\ <ul>
+        \\ <li><a href="/page1">page with custom dispatch</a>
+        \\ <li><a href="/page2">page with custom handler</a>
+    ;
+}
