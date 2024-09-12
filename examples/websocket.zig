@@ -5,6 +5,8 @@ const zerv = @import("zerv");
 
 const websocket = zerv.websocket;
 
+const PORT = 8808;
+
 // websocket.zig is verbose, let's limit it to err messages
 pub const std_options = .{ .log_scope_levels = &[_]std.log.ScopeLevel{
     .{ .scope = .websocket, .level = .err },
@@ -42,6 +44,35 @@ const Handler = struct {
     // or you could define the full structure here
     pub const WebsocketHandler = Client;
 };
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // For websocket support,
+    // you _must_ define a Handler,
+    // and your Handler _must_ have a WebsocketHandler decleration
+    var server = try zerv.Server(Handler).init(allocator, .{ .port = PORT }, Handler{});
+
+    defer server.deinit();
+
+    // ensures a clean shutdown,
+    // finishing off any existing requests see shutdown.zig for
+    // how to to break server.listen with an interrupt
+    defer server.stop();
+
+    var router = server.router(.{});
+
+    router.get("/", index, .{});
+
+    router.get("/ws", ws, .{});
+
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // Starts the server,
+    // this is blocking.
+    try server.listen();
+}
 
 fn index(_: Handler, _: *zerv.Request, res: *zerv.Response) !void {
     res.content_type = .HTML;
