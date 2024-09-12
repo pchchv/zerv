@@ -42,3 +42,18 @@ const Handler = struct {
     // or you could define the full structure here
     pub const WebsocketHandler = Client;
 };
+
+fn index(_: Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    res.content_type = .HTML;
+    res.body =
+        \\<!DOCTYPE html>
+        \\ <p>zerv integrates with my own <a href="https://github.com/karlseguin/websocket.zig/">websocket.zig</a>.
+        \\ <p>A websocket connection should already be established.</p>
+        \\ <p>Copy and paste the following in your browser console to have the server echo back:</p>
+        \\ <pre>ws.send("hello from the client!");</pre>
+        \\ <script>
+        \\ const ws = new WebSocket("ws://localhost:8808/ws");
+        \\ ws.addEventListener("message", (event) => { console.log("from server: ", event.data) });
+        \\ </script>
+    ;
+}
