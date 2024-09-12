@@ -20,3 +20,19 @@ const Handler = struct {
         }
     }
 };
+
+fn page1(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    // Called with a custom config which specified a custom dispatch method
+    res.body =
+        \\ Accessing this endpoint will NOT generate a log line in the console,
+        \\ because a custom dispatch method is used
+    ;
+}
+
+fn page2(_: *Handler, _: *zerv.Request, res: *zerv.Response) !void {
+    // Called with a custom config which specified a custom handler instance
+    res.body =
+        \\ Accessing this endpoint will NOT generate a log line in the console,
+        \\ because a custom handler instance is used
+    ;
+}
