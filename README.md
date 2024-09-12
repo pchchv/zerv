@@ -72,8 +72,6 @@ zerv is written in Zig, without using `std.http.Server`. On M2, a basic request 
 # Handler
 When a non-void Handler is used, the value given to `Server(H).init` is passed to every action. This is how application-specific data can be passed into your actions.
 
-For example, using [pg.zig](https://github.com/pchchv/pg.zig), we can make a database connection pool available to each action:
-
 ```zig
 const pg = @import("pg");
 const std = @import("std");
@@ -514,18 +512,7 @@ try res.headerOpts("Location", location, .{.dupe_value = true});
 `HeaderOpts` currently supports `dupe_name: bool` and `dupe_value: bool`, both default to `false`.
 
 ## Writing
-By default, zerv will automatically flush your response. In more advance cases, you can use `res.write()` to explicitly flush it. This is useful in cases where you have resources that need to be freed/released only after the response is written. For example, my [LRU cache](https://github.com/pchchv/cache.zig) uses atomic referencing counting to safely allow concurrent access to cached data. This requires callers to "release" the cached entry:
-
-```zig
-pub fn info(app: *MyApp, _: *zerv.Request, res: *zerv.Response) !void {
-    const cached = app.cache.get("info") orelse {
-        // load the info
-    };
-    defer cached.release();
-
-    res.body = cached.value;
-    return res.write();
-}
+By default, zerv will automatically flush your response. In more advance cases, you can use `res.write()` to explicitly flush it. This is useful in cases where you have resources that need to be freed/released only after the response is written. 
 ```
 
 # Router
