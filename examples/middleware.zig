@@ -5,7 +5,42 @@
 // For an example of writing middleware,
 // see middleware/Logger.zig.
 
+const std = @import("std");
 const zerv = @import("zerv");
+
+const Logger = @import("middleware/Logger.zig");
+
+const PORT = 8806;
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var server = try zerv.Server(void).init(allocator, .{ .port = PORT }, {});
+
+    defer server.deinit();
+
+    // ensures a clean shutdown, finishing off any existing requests
+    // see shutdown.zig for how to to break server.listen with an interrupt
+    defer server.stop();
+
+    // creates an instance of the middleware with the given configuration
+    // see example/middleware/Logger.zig
+    const logger = try server.middleware(Logger, .{ .query = true });
+
+    var router = server.router(.{});
+
+    // Apply middleware to all routes created from this point on
+    router.middlewares = &.{logger};
+
+    router.get("/", index, .{});
+    router.get("/other", other, .{ .middlewares = &.{} });
+
+    std.debug.print("listening http://localhost:{d}/\n", .{PORT});
+
+    // Starts the server, this is blocking.
+    try server.listen();
+}
 
 fn index(_: *zerv.Request, res: *zerv.Response) !void {
     res.content_type = .HTML;
