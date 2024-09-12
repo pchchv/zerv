@@ -57,3 +57,19 @@ fn index(_: Handler, _: *zerv.Request, res: *zerv.Response) !void {
         \\ </script>
     ;
 }
+
+fn ws(_: Handler, req: *zerv.Request, res: *zerv.Response) !void {
+    // Could do authentication or anything else before upgrading the connection.
+    // The context is any arbitrary data you want to pass to Client.init.
+    const ctx = Client.Context{ .user_id = 9001 };
+
+    // The first parameter,
+    // Client, ***MUST*** be the same as Handler.WebSocketHandler
+    // It's undefined behavior if they don't match,
+    // and it _will_ behave weirdly/crash.
+    if (try zerv.upgradeWebsocket(Client, req, res, &ctx) == false) {
+        res.status = 500;
+        res.body = "invalid websocket";
+    }
+    // unsafe to use req or res at this point!
+}
